@@ -212,6 +212,8 @@ if __name__ == '__main__':
         print(i)
         time.sleep(1)
 
+        # ide oda
+
 
 
 
