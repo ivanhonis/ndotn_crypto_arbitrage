@@ -10,15 +10,31 @@ class n_riport():
         self.description = ""
         self.delete_previous = True
         self.previous_file = ""
+        self._previous_live_file = ""
         self.body = ""
         self.run_time_start = None
         self.run_time_stop = None
-        self.length = 100
+        self.length = 120
+        self.live_text = ""
+
+    def stamp_live(self):
+        if self._previous_live_file != "":
+            os.remove(self._previous_live_file)
+        i_file_name = "LIVE_arb_at_"+self.get_dt_tag() + ".txt"
+
+        with open(i_file_name, "w", encoding="utf-8") as f:
+            f.write(self.live_text)
+        f.close()
+        self._previous_live_file = i_file_name
 
     def get_dt_tag(self):
         i_dt = datetime.datetime.now()
-        return str(i_dt.year) + str(i_dt.month) + str(i_dt.day) + "_" + str(i_dt.hour) + str(i_dt.minute) + str(
-            i_dt.second)
+        i_mo = "00" + str(i_dt.month)
+        i_da = "00" + str(i_dt.day)
+        i_h = "00" + str(i_dt.hour+1)
+        i_m = "00" + str(i_dt.minute)
+        i_s = "00" + str(i_dt.second)
+        return i_mo[-2:] + i_da[-2:] + "_" + i_h[-2:] + i_m[-2:] + i_s[-2:]
 
     def get_file_name(self):
         return str(self.name) + "_" + self.get_dt_tag()
@@ -62,7 +78,7 @@ class n_riport():
         self.previous_file = i_file_name
 
     def add_line(self):
-        self.add("─" * self.length)
+        self.add("-" * self.length)
 
     def stamp_runtime(self, pos):
         if pos == "start" or pos == "START":
@@ -87,7 +103,7 @@ if __name__ == '__main__':
         x1.append(str(i))
 
     riport = n_riport()
-    riport.create("C1_RIpORT", "Arbitrázs gyakoriságokat vizsgál")
+    riport.create("C1_RIpORT", "Arbitrazs gyakorisagokat vizsgal")
 
     riport.add("Tömb: ", x1)
     riport.add("Tömb2: ", x1)
