@@ -1,4 +1,6 @@
 import asyncio
+import sys
+
 from binance.client import Client
 # from binance import ThreadedWebsocketManager
 from binance import AsyncClient, BinanceSocketManager
@@ -25,8 +27,8 @@ class n_arbitrage:
     def __init__(self):
 
         self.spread = 0.12  # %
-        self.fee = 0.07  # %
-        self.arb_check_delay = 0.2  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
+        self.fee = 0.0075  # %
+        self.arb_check_delay = 0.15  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
         self.riport = n_riport()
 
         self.socket_thread = None
@@ -50,7 +52,7 @@ class n_arbitrage:
         #                 'TOMO', 'XTZ', 'WRX', 'CHR', 'STMX', 'YFI', 'SRM', 'KSM', 'SUSHI', 'BEL', 'NEAR', 'SLP',
         #                 'REEF', 'C98', 'MINA', 'LAZIO', 'VOXEL']
 
-        self.symbols = ['BTC', 'BNB', 'ETH', 'ADA', 'LINK', 'DOT', 'TRX', 'FTM', 'BUSD', 'SOL',
+        self.symbols = ['BTC', 'ETH', 'ADA', 'LINK', 'DOT', 'TRX', 'FTM', 'BUSD', 'SOL',
                         'USDT', 'MATIC', 'ETC', 'NEO', 'ENJ', 'WAVES', 'ATOM', 'ONE', 'ZEC', 'MANA',
                         'ONT', 'HOT', 'CHZ', 'WIN', 'AXS', 'GALA', 'ANKR', 'RUNE', 'ICP', 'LRC',
                         'ZIL', 'BCHABC', 'TFUEL', 'ERD', 'DUSK', 'ARPA', 'EGLD', 'UNI', 'GRT', 'FIS',
@@ -59,6 +61,8 @@ class n_arbitrage:
                         'IOST', 'NANO', 'BLZ', 'SYS', 'XEM', 'TUSD', 'ZEN', 'SC', 'DENT', 'RVN',
                         'USDC', 'BCHSV', 'PHB', 'COCOS', 'TOMO', 'XTZ', 'WRX', 'CHR', 'STMX', 'YFI',
                         'SRM', 'KSM', 'SUSHI', 'BEL', 'NEAR', 'SLP', 'REEF', 'C98', 'MINA', 'LAZIO', 'VOXEL']
+
+        # BNB off
 
         self.all_pairs = self.defa_all_pairs()
 
@@ -302,15 +306,17 @@ class n_arbitrage:
         async with ts as tscm:
             while True:
                 res = await tscm.recv()
+                # if res['data']['s'] == "BTCUSDT":
+                # print("\r", res, end="")
 
                 s1 = self.selected_pairs[res['data']['s']][0]
                 s2 = self.selected_pairs[res['data']['s']][1]
 
-                self.df[s1][s2] = round(float(res['data']['b']) * self.spread_mod, 8)
-                self.df[s2][s1] = round((1 / float(res['data']['a'])) * self.spread_mod, 8)
+                self.df[s1][s2] = float(res['data']['b']) * self.spread_mod
+                self.df[s2][s1] = (1 / float(res['data']['a'])) * self.spread_mod
 
-                self.df_fee[s1][s2] = round(float(res['data']['b']) * self.fee_mod, 8)
-                self.df_fee[s2][s1] = round((1 / float(res['data']['a'])) * self.fee_mod, 8)
+                self.df_fee[s1][s2] = round(float(res['data']['b']) * self.fee_mod, 12)
+                self.df_fee[s2][s1] = round((1 / float(res['data']['a'])) * self.fee_mod, 12)
 
                 # self.df_sim_price[s1][s2] = round((float(res['data']['b']) + float(res['data']['a'])) / 2, 8)
                 # self.df_sim_price[s2][s1] = round(1 / ((float(res['data']['b']) + float(res['data']['a'])) / 2), 8)
@@ -343,21 +349,25 @@ if __name__ == '__main__':
         time.sleep(n_arb.arb_check_delay)
         # print(n_arb.df)
         df_fee_save = n_arb.df_fee.copy()
+        # copy to clipboard
+        # n_arb.df.to_clipboard(excel=True)
+
         arb_result = n_arb.arb_find()
         if len(arb_result) > 0:
 
             i_start_symbol = ""
 
             for arb in arb_result:
-                arb = arb[::-1]  ## pozitív ciklusra kell fordítani !!!! FONTOS
+                # arb = arb[::-1]  ## pozitív ciklusra kell fordítani !!!! FONTOS
                 i_start_symbol = str(arb[0])
-                if arb[0] != -1:
+                if (arb[0] != -1):
+                    # sys.exit(0)
                     arb_profit = 1
                     arb_profit_save = 1
                     for i in range(len(arb) - 1):
                         transactions_count += 1
-                        arb_profit *= n_arb.df_fee.at[arb[i], arb[i + 1]]
-                        arb_profit_save *= df_fee_save.at[arb[i], arb[i + 1]]
+                        arb_profit *= n_arb.df_fee.at[arb[i + 1], arb[i]]
+                        arb_profit_save *= df_fee_save.at[arb[i + 1], arb[i]]
                     # print(n_arb.df_fee.at["USDT", "BTC"])
                     # print(n_arb.df_fee.at["BTC", "USDT"])
                     profit_arr.append(arb_profit)

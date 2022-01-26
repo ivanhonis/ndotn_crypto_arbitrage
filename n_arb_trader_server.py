@@ -13,6 +13,7 @@ from collections import defaultdict
 import pandas as pd
 import numpy as np
 import math
+from functools import reduce
 import time
 from threading import Thread
 import textwrap
@@ -24,9 +25,12 @@ class n_arbitrage:
 
     def __init__(self):
 
-        self.spread = 0.03  # %
-        self.gap = 0.00  # %
-        self.arb_check_delay = 0.2  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
+
+        # self.arb_symbols = ["BTC"]
+        self.official_fee = 0.075  # %
+        self.spread = 0.14  # %
+        self.gap = 0.02  # %
+        self.arb_check_delay = 0.075  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
         self.riport = n_riport()
 
         self.socket_thread = None
@@ -34,12 +38,18 @@ class n_arbitrage:
 
         self.api_key = "DAqss9T987L0ruIbVEW9rBEFDD2sKxEKBvpvDVUJfdjijzqPqBgD8semkNF2I5Ul"
         self.api_secret = "3C1203CjVU3J0djfqG62QUSA2sFJJwWnHAmd7gd7t87OoOJJbx7NCnFV7PXx4Wpk"
-        self.b_client = Client(self.api_key, self.api_secret)
-        self.account = self.b_client.get_account()
-        self.exchange_info = self.b_client.get_exchange_info()
+        self.b_client = None
+        # print("itt 1")
+        self.account = self.get_account()
+        # print("itt 2", self.account)
+        self.exchange_info = self.get_exchange_info()
+        # print("itt 3", self.exchange_info)
+        # sys.exit(0)
 
         self.gap_mod = 1 - (self.gap / 100)
         self.spread_mod = 1 - (self.spread / 100)
+        self.official_fee_mod = (self.official_fee / 100) * 3
+        # sys.exit(0)
 
         # self.symbols = ['BTC', 'BNB', 'ETH', 'XRP', 'ADA', 'LINK', 'LTC', 'DOT', 'TRX', 'FTM', 'DOGE', 'BUSD',
         #                 'SOL', 'USDT', 'MATIC', 'EOS', 'ETC', 'BTT', 'LUNA', 'NEO', 'XLM', 'AVAX', 'ENJ', 'WAVES',
@@ -52,7 +62,7 @@ class n_arbitrage:
         #                 'TOMO', 'XTZ', 'WRX', 'CHR', 'STMX', 'YFI', 'SRM', 'KSM', 'SUSHI', 'BEL', 'NEAR', 'SLP',
         #                 'REEF', 'C98', 'MINA', 'LAZIO', 'VOXEL']
 
-        self.symbols = ['BTC', 'BNB', 'ETH', 'ADA', 'LINK', 'DOT', 'TRX', 'FTM', 'BUSD', 'SOL',
+        self.symbols = ['BTC', 'ETH', 'ADA', 'LINK', 'DOT', 'TRX', 'FTM', 'BUSD', 'SOL',
                         'USDT', 'MATIC', 'ETC', 'NEO', 'ENJ', 'WAVES', 'ATOM', 'ONE', 'ZEC',
                         'ONT', 'HOT', 'CHZ', 'WIN', 'AXS', 'GALA', 'ANKR', 'RUNE', 'ICP', 'LRC',
                         'ZIL', 'BCHABC', 'TFUEL', 'ERD', 'DUSK', 'ARPA', 'EGLD', 'UNI', 'GRT', 'FIS',
@@ -62,6 +72,7 @@ class n_arbitrage:
                         'USDC', 'BCHSV', 'PHB', 'COCOS', 'TOMO', 'XTZ', 'WRX', 'CHR', 'STMX', 'YFI',
                         'SRM', 'KSM', 'SUSHI', 'BEL', 'NEAR', 'SLP', 'REEF', 'C98', 'MINA', 'LAZIO', 'VOXEL']
 
+        # OFF BNB
 
         # MANA OFF ,ert beszorulok minimum 20 a kereskedhető
 
@@ -69,17 +80,18 @@ class n_arbitrage:
         self.all_pairs = self.defa_all_pairs()
 
         self.selected_symbols = self.symbols[:50]  ## kiválasztam amivel dolgozok
+        self.commission = self.defa_commission()
         self.selected_pairs = self.defa_selected_pairs()  ##a kiválasztott szimbólumokhoz kapcsolódó párokat kiválasztom
 
-        self.freq_selected_symbols = self.defa_symbols_frequency()  ## a symbólum gyakoriság méréséhez előkészítem a dictionarit
-        self.freq_triangles = {}
-        self.freq_start_symbol = {}
+        # self.freq_selected_symbols = self.defa_symbols_frequency()  ## a symbólum gyakoriság méréséhez előkészítem a dictionarit
+        # self.freq_triangles = {}
+        # self.freq_start_symbol = {}
 
         self.df = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
         self.df = self.df.astype(float)
 
-        self.df_fee = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
-        self.df_fee = self.df.astype(float)
+        # self.df_fee = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
+        # self.df_fee = self.df.astype(float)
 
         self.df_sim_price = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
         self.df_sim_price = self.df.astype(float)
@@ -91,9 +103,73 @@ class n_arbitrage:
 
         # for trader
 
-
+        # ez egy miről mire megyek katalógus
         self.pair_info = self.defa_pair_info()
         self.estimated_amount = self.defa_estimated_amount()
+        self.triangle_profit = []
+
+    async def open_binance_client(self):
+        self.b_client = await AsyncClient.create(self.api_key, self.api_secret)
+
+    async def close_binance_client(self):
+        await self.b_client.close_connection()
+
+    async def _get_account(self):
+        await self.open_binance_client()
+        # client = await AsyncClient.create(self.api_key, self.api_secret)
+        res = await self.b_client.get_account()
+        # res = await client.order_market_buy()
+        # print(res)
+        # await client.close_connection()
+        await self.close_binance_client()
+        return res
+
+    def get_account(self):
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(self._get_account())
+
+    async def _order_market_sell(self, symbol, quantity):
+        # await self.open_binance_client()
+        # client = await AsyncClient.create(self.api_key, self.api_secret)
+        order = await self.b_client.order_market_sell(
+                symbol=symbol,
+                quantity=str(quantity))
+        # print(res)
+        # await client.close_connection()
+        # await self.close_binance_client()
+        return order
+
+    def order_market_sell(self, symbol, quantity):
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(self._order_market_sell(symbol, quantity))
+
+    async def _order_market_buy(self, symbol, quantity):
+        # await self.open_binance_client()
+        # client = await AsyncClient.create(self.api_key, self.api_secret)
+        order = await self.b_client.order_market_buy(
+                symbol=symbol,
+                quantity=str(quantity))
+        # print(res)
+        # await client.close_connection()
+        # await self.close_binance_client()
+        return order
+
+    def order_market_buy(self, symbol, quantity):
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(self._order_market_buy(symbol, quantity))
+
+    async def _get_exchange_info(self):
+        await self.open_binance_client()
+        # client = await AsyncClient.create(self.api_key, self.api_secret)
+        res = await self.b_client.get_exchange_info()
+        # print(res)
+        # await client.close_connection()
+        await self.close_binance_client()
+        return res
+
+    def get_exchange_info(self):
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(self._get_exchange_info())
 
     def get_symbol_info2(self, symbol):
         for item in self.exchange_info['symbols']:
@@ -116,15 +192,26 @@ class n_arbitrage:
         return 0.0
 
     def print_estimated_amount(self):
-        print("Wallet -----------------------------")
+        print(" Spot wallet:")
         for ea in self.estimated_amount:
             if self.estimated_amount[ea] != 0:
-                print(" ", ea, self.estimated_amount[ea])
+                print("  ", ea, self.estimated_amount[ea])
 
     def refresh_estimated_amount(self):
-        self.account = self.b_client.get_account()
+        self.account = self.get_account()
         self.estimated_amount = self.defa_estimated_amount()
 
+    def reduce_BNB(self, percent):
+        percent = percent/100
+        if "BNB" in self.estimated_amount.keys():
+            self.estimated_amount["BNB"] = self.estimated_amount["BNB"] * (1 - percent)
+
+    def defa_commission(self):
+        comission = {}
+        for sesy in self.selected_symbols:
+            comission[sesy] = 0.0
+        comission["BNB"] = 0.0
+        return comission
 
     def defa_estimated_amount(self):
         estimated_amount = {}
@@ -142,11 +229,12 @@ class n_arbitrage:
                     min_qty = float(filters['minQty'])
                     pair_info[si1 + si2] = [si1 + si2, "SELL", step_size, min_qty]
                     pair_info[si2 + si1] = [si1 + si2, "BUY", step_size, min_qty]
+                    # ez egy miről mire megyek katalógus
         return pair_info
 
     def defa_all_pairs(self):
         i_all_pairs = []
-        for sy in self.b_client.get_exchange_info()['symbols']:
+        for sy in self.exchange_info['symbols']:
             i_all_pairs.append(sy['symbol'])
         return i_all_pairs
 
@@ -156,12 +244,12 @@ class n_arbitrage:
             i_socket_list.append(sp.lower() + '@bookTicker')
         return i_socket_list
 
-    def defa_symbols_frequency(self):
-        i_selected_symbols_frequency = {}
-        for fr in self.selected_symbols:
-            i_selected_symbols_frequency[fr] = 0
-        i_selected_symbols_frequency[-1] = 0
-        return i_selected_symbols_frequency
+    # def defa_symbols_frequency(self):
+    #     i_selected_symbols_frequency = {}
+    #     for fr in self.selected_symbols:
+    #         i_selected_symbols_frequency[fr] = 0
+    #     i_selected_symbols_frequency[-1] = 0
+    #     return i_selected_symbols_frequency
 
     def defa_selected_pairs(self):
         i_selected_pairs = {}
@@ -175,45 +263,60 @@ class n_arbitrage:
                     i_selected_pairs[si1 + si2] = [si1, si2]
         return i_selected_pairs
 
-    def trade(self, from_symbol, to_symbol, pair_symbol, side, step_size, min_qt, estimated_amount):
-        # cross_price = self.df_sim_price.at[from_symbol, to_symbol]
-        print("Trade", "-" * 60)
-        print(" from_symbol", from_symbol)
-        print(" to_symbol", to_symbol)
-        print(" pair_symbol", pair_symbol)
-        print(" side", side)
-        print(" step_size", step_size)
-        # print(" cross_price", cross_price)
-        print(" min_qt", min_qt)
+    async def get_fills_qty(self, order_result):
+        fills = order_result['fills']
+        total_qty = 0.0
+        total_amount = 0.0
+        for fs in fills:
+            self.commission[fs['commissionAsset']] += float(fs['commission'])
+            total_qty += float(fs['qty'])
+            total_amount += (float(fs['qty']) * float(fs['price']))
+        avg_price = total_amount / total_qty
+        return avg_price, total_qty
+
+    async def _trade(self, from_symbol, to_symbol, pair_symbol, side, step_size, min_qt, estimated_amount):
+        print(" Trade log:", from_symbol, "->", to_symbol, "   ", pair_symbol, side)
+        # print(" ", from_symbol, "->", to_symbol)
+        # print(" ", pair_symbol, side)
+        # print(" side", side)
+        # print(" step_size", step_size)
+        # print(" min_qt", min_qt)
+        # print(" etimated amount from_symbol", estimated_amount[from_symbol])
         if side == "BUY":
             # meg kell becsülni hogy mennyit tudok venni
 
             cross_price = self.df_sim_price.at[to_symbol, from_symbol]
-            print(" cross_price to from", cross_price, 1 / cross_price)
 
-            cross_price = self.df_sim_price.at[from_symbol, to_symbol]
-            print(" cross_price from to", cross_price, 1 / cross_price)
+            # cross_price = self.df_sim_price.at[from_symbol, to_symbol]
+            # print(" cross_price from to", cross_price, 1 / cross_price)
 
-            trade_qty = (estimated_amount[from_symbol] / cross_price)
+            trade_qty = (estimated_amount[from_symbol] * cross_price)
             # print(" trade_qty", trade_qty)
             # kerekítem kereskedhető mennyiségre
             # egy kicsivel (min_qty) kevesebbet veszek, hogy biztosan teljesüljön a tranzakció
             # ha emelkedik az ár a kiszámolt mennyiséget már nem tudom megvenni !!!!
-            rounded_trade_qty = round(round_step_size(trade_qty, step_size), 8)
+            rounded_trade_qty = round(round_step_size(trade_qty, step_size) - step_size, 8)
             # print(" 1 rounded_trade_qty", rounded_trade_qty)
-            if rounded_trade_qty > trade_qty:
-                rounded_trade_qty = round(rounded_trade_qty - step_size, 8)
+            # if rounded_trade_qty > trade_qty:
+
+            # mindenképen levonok belőle egy egységnyit
+            # rounded_trade_qty = round(rounded_trade_qty - step_size, 8)
             # print(" 2 rounded_trade_qty", rounded_trade_qty)
 
             ## biztonsági tartalék mozgó árakra
-            rounded_trade_qty = round(rounded_trade_qty - step_size, 8)
-            print(" rounded_trade_qty", rounded_trade_qty)
+            # rounded_trade_qty = round(rounded_trade_qty - step_size, 8)
 
             if rounded_trade_qty > min_qt:
-                order = self.b_client.order_market_buy(
+                order = await self._order_market_buy(
                     symbol=pair_symbol,
-                    quantity=str(rounded_trade_qty))
+                    quantity=rounded_trade_qty)
                 # print(order)
+                traded_price, traded_qty = await self.get_fills_qty(order)
+                self.triangle_profit.append(traded_price)
+                return traded_qty
+            else:
+                print("BUY minimum problem")
+                return 0
 
             # order = b_client.create_test_order(
             #    symbol=pair_symbol,
@@ -222,24 +325,38 @@ class n_arbitrage:
             #    quantity=rounded_trade_qty
             # )
 
-            return rounded_trade_qty  # ez a becsült darb amit kapnif ogok
+            # idő veszteség miatt a pontosabb becslés érdekáben újra becsülőm
 
+            # cross_price = self.df_sim_price.at[to_symbol, from_symbol]
+            # print(" cross_price to from", cross_price)
+            # trade_qty = (estimated_amount[from_symbol] * cross_price)
+            # e_rounded_trade_qty = round_step_size(trade_qty, step_size) - step_size
+            # print("return qty:", self.get_fills_qty(order), rounded_trade_qty)
+             # ez a becsült darb amit kapnif ogok
 
         elif side == "SELL":
-            rounded_trade_qty = round(round_step_size(estimated_amount[from_symbol], step_size), 8)
+            rounded_trade_qty = round_step_size(estimated_amount[from_symbol], step_size)
             if rounded_trade_qty > estimated_amount[from_symbol]:
-                rounded_trade_qty = round(rounded_trade_qty - step_size)
+                rounded_trade_qty = round(rounded_trade_qty - step_size, 8)
 
 
             ## biztonsági tartalék mozgó árakra
-            rounded_trade_qty = round(rounded_trade_qty - step_size, 8)
-            print("rounded_trade_qty", rounded_trade_qty)
+            # rounded_trade_qty = round(rounded_trade_qty - step_size, 8)
 
             if rounded_trade_qty > min_qt:
-                order = self.b_client.order_market_sell(
+                order = await self._order_market_sell(
                     symbol=pair_symbol,
-                    quantity=str(rounded_trade_qty))
+                    quantity=rounded_trade_qty)
                 # print(order)
+                # meg kell becsülni, hogy mennyit kaptam a to_symbol ból
+                # cross_price = self.df_sim_price.at[to_symbol, from_symbol]
+                # return rounded_trade_qty * cross_price
+                traded_price, traded_qty = await self.get_fills_qty(order)
+                self.triangle_profit.append(1 / traded_price)
+                return traded_price * traded_qty
+            else:
+                print("SELL minimum problem")
+                return 0
 
             # order = b_client.create_test_order(
             #    symbol=pair_symbol,
@@ -248,17 +365,14 @@ class n_arbitrage:
             #    quantity=rounded_trade_qty
             # )
 
-            # print(order)
-            cross_price = self.df_sim_price.at[to_symbol, from_symbol]
-            print(" cross_price to from", cross_price, 1 / cross_price)
-
-            cross_price = self.df_sim_price.at[from_symbol, to_symbol]
-            print(" cross_price from to", cross_price, 1/cross_price)
-
-            return round(rounded_trade_qty / cross_price, 8)  # ez a becsült darb amit kapnif ogok
-
     def trade_triangle(self, arb):
-        # start = time.time()
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(self._trade_triangle(arb))
+
+    async def _trade_triangle(self, arb):
+        await self.open_binance_client()
+        start = time.time()
+        self.triangle_profit = [1.0]
         for i in range(len(arb) - 1):
             from_symbol = arb[i]
             to_symbol = arb[i + 1]
@@ -268,19 +382,22 @@ class n_arbitrage:
             i_side = self.pair_info[from_to_symbol][1]
             i_step_size = self.pair_info[from_to_symbol][2]
             i_min_qty = self.pair_info[from_to_symbol][3]
-            estimated_qt = self.trade(from_symbol=from_symbol,
-                                      to_symbol=to_symbol,
-                                      pair_symbol=i_pair_symbol,
-                                      side=i_side,
-                                      step_size=i_step_size,
-                                      min_qt=i_min_qty,
-                                      estimated_amount=self.estimated_amount)
-            self.estimated_amount[to_symbol] = estimated_qt
+            estimated_qty = await self._trade(from_symbol=from_symbol,
+                                             to_symbol=to_symbol,
+                                             pair_symbol=i_pair_symbol,
+                                             side=i_side,
+                                             step_size=i_step_size,
+                                             min_qt=i_min_qty,
+                                             estimated_amount=self.estimated_amount)
+            self.estimated_amount[to_symbol] = estimated_qty
             self.estimated_amount[from_symbol] = 0
-
-            self.print_estimated_amount()
-
-        # print("SPEED: ", time.time() - start)
+            # self.print_estimated_amount()
+        self.account = await self.b_client.get_account()
+        await self.close_binance_client()
+        self.estimated_amount = self.defa_estimated_amount()
+        print(" Speed:", time.time() - start, "                     ", "Profit (-fee):",
+              reduce(lambda x, y: x * y, self.triangle_profit) - n_arb.official_fee_mod)
+        # print()
 
     def arb_bellman_ford_negative_cycles(self, g, s):
         """
@@ -458,6 +575,7 @@ class n_arbitrage:
     async def asyc_websocket(self):
         client = await AsyncClient.create()
         bm = BinanceSocketManager(client)
+
         # start any sockets here, i.e a trade socket
         # ts = bm.trade_socket('BNBBTC')
 
@@ -466,16 +584,16 @@ class n_arbitrage:
         async with ts as tscm:
             while True:
                 res = await tscm.recv()
-                # print(res)
+                # print("\r", res, end="")
 
                 s1 = self.selected_pairs[res['data']['s']][0]
                 s2 = self.selected_pairs[res['data']['s']][1]
 
-                self.df[s1][s2] = round(float(res['data']['b']) * self.spread_mod, 8)
-                self.df[s2][s1] = round((1 / float(res['data']['a'])) * self.spread_mod, 8)
+                self.df[s1][s2] = float(res['data']['b']) * self.spread_mod
+                self.df[s2][s1] = (1 / float(res['data']['a'])) * self.spread_mod
 
-                self.df_sim_price[s1][s2] = round(float(res['data']['b']) * self.gap_mod, 8)
-                self.df_sim_price[s2][s1] = round((1 / float(res['data']['a'])) * self.gap_mod, 8)
+                self.df_sim_price[s1][s2] = float(res['data']['b']) * self.gap_mod
+                self.df_sim_price[s2][s1] = (1 / float(res['data']['a'])) * self.gap_mod
 
                 # self.df_sim_price[s1][s2] = float(res['data']['b'])
                 # self.df_sim_price[s2][s1] = round(1 / float(res['data']['a']), 8)
@@ -498,10 +616,25 @@ class n_arbitrage:
 
 if __name__ == '__main__':
     n_arb = n_arbitrage()
-    live_update = 10  #minuta
+    # live_update = 10  #minuta
     n_arb.start()
-    print("Start Trade -------------------")
+    # print("Start Trade -------------------")
+    # n_arb.print_estimated_amount()
+    # for i in range(20):
+    #     print("\r", i, end="")
+    #     time.sleep(1)
+
+    # # copy to clipboard
+    # # n_arb.df.to_clipboard(excel=True)
+    # arb = ["USDT", "BTC", "ETH", "USDT"]
+    # n_arb.trade_triangle(arb)
+    # print("Stop Trade -------------------")
+    for i in range(5):
+        print(" ")
+    print("Start n_arb_trader_server ....................................")
     n_arb.print_estimated_amount()
+    # print(n_arb.commission)
+    # sys.exit(0)
 
     # for es in n_arb.exchange_info["symbols"]:
     #     if es["symbol"] == "NULSBNB" or es["symbol"] == "BNBUSDT":
@@ -516,28 +649,35 @@ if __name__ == '__main__':
     # profit_arr = []
     # profit_arr_save = []
     # transactions_count = 0
-    circle_count = 0
-    live_update_val = int((1/n_arb.arb_check_delay) * 60 * live_update)
+    # circle_count = 0
+    # live_update_val = int((1/n_arb.arb_check_delay) * 60 * live_update)
+    traded_triangle_count = 0
     while True:
 
         time.sleep(n_arb.arb_check_delay)
         # print(n_arb.df)
         # df_fee_save = n_arb.df_fee.copy()
-        arb_result = n_arb.arb_find()
-        if len(arb_result) > 0:
-
+        # arb_result =
+        # print("\r", circle_count, "/", all_arb_count, end="")
+        # if arb_result:
+            # print(arb_result)
             # i_start_symbol = ""
 
-            for arb in arb_result:
-                arb = arb[::-1]  ## pozitív ciklusra kell fordítani !!!! FONTOS
-                # i_start_symbol = str(arb[0])
-                if arb[0] == "BNB":
+        for arb in n_arb.arb_find():  # ez egyben egy if is :)
+            # if arb[0] != -1:
+            #     all_arb_count += 1
+            # arb = arb[::-1]  ## pozitív ciklusra kell fordítani !!!! FONTOS
+            # i_start_symbol = str(arb[0])
+            if arb[0] == "BTC":
+                traded_triangle_count += 1
+                print(traded_triangle_count, "Start trade triangle:                           ", arb)
+                n_arb.trade_triangle(arb)
+                # n_arb.refresh_estimated_amount()
+                # n_arb.reduce_BNB(1)  # %
 
-                    print(arb)
-                    n_arb.trade_triangle(arb)
-                    n_arb.refresh_estimated_amount()
-                    print("Start Trade -------------------")
-                    n_arb.print_estimated_amount()
+                n_arb.print_estimated_amount()
+                print("Triangle finishd.")
+                print(" ")
                     # sys.exit(0)
                     # arb_profit = 1
                     # arb_profit_save = 1
@@ -588,7 +728,14 @@ if __name__ == '__main__':
             #     n_arb.riport.add("Average profit save", sum(profit_arr_save) / len(profit_arr_save))
             #     n_arb.riport.write()
 
-        circle_count += 1
-        if circle_count > live_update_val:
-            circle_count = 0
-            n_arb.riport.stamp_live()
+        # circle_count += 1
+        # if circle_count % 800 == 0:
+        #     print("connect :)")
+        #     n_arb.refresh_estimated_amount()
+        #     n_arb.reduce_BNB(1)
+        #     # n_arb.b_client.stream_keepalive()
+
+
+        # if circle_count > live_update_val:
+        #     circle_count = 0
+            # n_arb.riport.stamp_live()
