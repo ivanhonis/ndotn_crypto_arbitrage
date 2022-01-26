@@ -1,0 +1,4 @@
+#python 3.9
+!pip install pandas
+!pip install networkx
+!pip install python-binance

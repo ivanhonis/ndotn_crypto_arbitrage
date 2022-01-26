@@ -1,25 +1,24 @@
-import asyncio
 # import sys
-import sys
-
-from binance.client import Client
-# from binance import ThreadedWebsocketManager
-from binance import AsyncClient, BinanceSocketManager
-from binance.helpers import round_step_size
-
-import networkx as nx
-from collections import defaultdict
-
-
-# hello
-import pandas as pd
+import asyncio
 import numpy as np
+import pandas as pd
 import math
 from functools import reduce
 import time
 from threading import Thread
 import textwrap
 
+# Bellman Ford - Graph
+import networkx as nx
+from collections import defaultdict
+
+# Binanace
+# from binance.client import Client
+# from binance import ThreadedWebsocketManager
+from binance import AsyncClient, BinanceSocketManager
+from binance.helpers import round_step_size
+
+# nDot
 from n_riport import n_riport
 
 
@@ -30,9 +29,9 @@ class n_arbitrage:
 
         # self.arb_symbols = ["BTC"]
         self.official_fee = 0.075  # %
-        self.spread = 0.14  # %
+        self.spread = 0.04  # %
         self.gap = 0.02  # %
-        self.arb_check_delay = 0.0  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
+        self.arb_check_delay = 0.2  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
         self.riport = n_riport()
 
         self.socket_thread = None
@@ -101,7 +100,7 @@ class n_arbitrage:
         self.socket_list = self.defa_socket_list()
 
         self.riport.live_text = self.get_settings()
-        self.riport.stamp_live()
+        # self.riport.stamp_live()
 
         # for trader
 
@@ -534,6 +533,7 @@ class n_arbitrage:
         # Read df and convert to negative logs so we can use Bellman Ford
         # Negative weight cycles thus correspond to arbitrage opps
         # Transpose log_df so that graph has same API as the dataframe
+        # print(self.df)
         g = nx.DiGraph(-np.log(self.df).fillna(0).T)
 
         if nx.negative_edge_cycle(g):
@@ -587,7 +587,6 @@ class n_arbitrage:
         async with ts as tscm:
             while True:
                 res = await tscm.recv()
-                # print("\r", res, end="")
 
                 s1 = self.selected_pairs[res['data']['s']][0]
                 s2 = self.selected_pairs[res['data']['s']][1]
@@ -672,10 +671,12 @@ if __name__ == '__main__':
             # arb = arb[::-1]  ## pozitív ciklusra kell fordítani !!!! FONTOS
             # i_start_symbol = str(arb[0])
         arb = n_arb.arb_find()
-        if arb and arb[0] == "BTC":
+        print(arb)
+        # arb = []
+        if arb and arb[0] == "USDT":
             traded_triangle_count += 1
             # print(traded_triangle_count, "Start trade triangle:                           ", arb)
-            n_arb.trade_triangle(arb)
+            # n_arb.trade_triangle(arb)
             # n_arb.refresh_estimated_amount()
             # n_arb.reduce_BNB(1)  # %
 
