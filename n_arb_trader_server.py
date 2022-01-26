@@ -30,7 +30,7 @@ class n_arbitrage:
         self.official_fee = 0.075  # %
         self.spread = 0.14  # %
         self.gap = 0.02  # %
-        self.arb_check_delay = 0.075  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
+        self.arb_check_delay = 0.0  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
         self.riport = n_riport()
 
         self.socket_thread = None
@@ -275,7 +275,7 @@ class n_arbitrage:
         return avg_price, total_qty
 
     async def _trade(self, from_symbol, to_symbol, pair_symbol, side, step_size, min_qt, estimated_amount):
-        print(" Trade log:", from_symbol, "->", to_symbol, "   ", pair_symbol, side)
+        # print(" Trade log:", from_symbol, "->", to_symbol, "   ", pair_symbol, side)
         # print(" ", from_symbol, "->", to_symbol)
         # print(" ", pair_symbol, side)
         # print(" side", side)
@@ -395,6 +395,7 @@ class n_arbitrage:
         self.account = await self.b_client.get_account()
         await self.close_binance_client()
         self.estimated_amount = self.defa_estimated_amount()
+        print(" Start trade triangle:                           ", arb)
         print(" Speed:", time.time() - start, "                     ", "Profit (-fee):",
               reduce(lambda x, y: x * y, self.triangle_profit) - n_arb.official_fee_mod)
         # print()
@@ -663,22 +664,23 @@ if __name__ == '__main__':
             # print(arb_result)
             # i_start_symbol = ""
 
-        for arb in n_arb.arb_find():  # ez egyben egy if is :)
+        # for arb in n_arb.arb_find():  # ez egyben egy if is :)
             # if arb[0] != -1:
             #     all_arb_count += 1
             # arb = arb[::-1]  ## pozitív ciklusra kell fordítani !!!! FONTOS
             # i_start_symbol = str(arb[0])
-            if arb[0] == "BTC":
-                traded_triangle_count += 1
-                print(traded_triangle_count, "Start trade triangle:                           ", arb)
-                n_arb.trade_triangle(arb)
-                # n_arb.refresh_estimated_amount()
-                # n_arb.reduce_BNB(1)  # %
+        arb = n_arb.arb_find()
+        if arb and arb[0] == "BTC":
+            traded_triangle_count += 1
+            # print(traded_triangle_count, "Start trade triangle:                           ", arb)
+            n_arb.trade_triangle(arb)
+            # n_arb.refresh_estimated_amount()
+            # n_arb.reduce_BNB(1)  # %
 
-                n_arb.print_estimated_amount()
-                print("Triangle finishd.")
-                print(" ")
-                    # sys.exit(0)
+            n_arb.print_estimated_amount()
+            print("Triangle finishd.")
+            print(" ")
+                # sys.exit(0)
                     # arb_profit = 1
                     # arb_profit_save = 1
                     # for i in range(len(arb) - 1):
