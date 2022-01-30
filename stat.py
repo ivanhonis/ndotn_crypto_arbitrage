@@ -1,9 +1,6 @@
-print("itt")
 # import sys
 import asyncio
-
 import sys
-import os
 # import winsound
 import requests
 # import json
@@ -26,7 +23,6 @@ from collections import defaultdict
 from binance import AsyncClient, BinanceSocketManager
 from binance.helpers import round_step_size
 
-
 # nDot
 from n_riport import n_riport
 
@@ -34,13 +30,19 @@ from n_riport import n_riport
 class n_arbitrage:
 
     def __init__(self):
-        self.arb_symbols = ['USDT']
-        self.official_fee = 0.1  # %   for profit triangle profit calc
-        self.spread = 0.9  # %
+        self.arb_symbols = ['BTC', 'ETH', 'ADA', 'LINK', 'DOT', 'TRX', 'FTM', 'SOL', 'MATIC', 'ETC', 'NEO', 'ENJ', 'WAVES', 'ATOM', 'ONE', 'ZEC',
+                        'ONT', 'HOT', 'CHZ', 'WIN', 'AXS', 'GALA', 'ANKR', 'RUNE', 'ICP', 'LRC',
+                        'ZIL', 'BCHABC', 'TFUEL', 'ERD', 'DUSK', 'ARPA', 'EGLD', 'UNI', 'GRT', 'FIS',
+                        'ALICE', 'NU', 'QTUM', 'ZRX', 'OMG', 'STRAT', 'IOTA', 'REP', 'ADX', 'NULS',
+                        'DASH', 'POWR', 'XMR', 'BTS', 'XZC', 'LSK', 'LEND', 'ICX', 'AION', 'RLC',
+                        'IOST', 'NANO', 'BLZ', 'SYS', 'XEM', 'TUSD', 'ZEN', 'SC', 'DENT', 'RVN',
+                        'USDC', 'BCHSV', 'PHB', 'COCOS', 'TOMO', 'XTZ', 'WRX', 'CHR', 'STMX', 'YFI',
+                        'SRM', 'KSM', 'SUSHI', 'BEL', 'NEAR', 'SLP', 'REEF', 'C98', 'MINA', 'VOXEL']
+        self.official_fee = 0.025  # %   for profit triangle profit calc
+        self.spread = 0.0  # %
         # self.gap = 0.07  # %
         self.arb_check_delay = 0.00  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
         # self.riport = n_riport()
-        self.stop_tradeing_at_USDT = 60
 
         self.socket_thread = None
         # self.stop_thread = None
@@ -52,7 +54,7 @@ class n_arbitrage:
         self.exchange_info = self.get_exchange_info()
 
         # self.gap_mod = 1 - (self.gap / 100)
-        self.spread_mod = (1 - (self.spread / 100)) ** 3
+        self.spread_mod = 1 - (self.spread / 100)
         self.official_fee_mod = (1 - (self.official_fee / 100)) ** 3
 
         # self.symbols = ['AGLD', 'STPT', 'MXN', 'UGX', 'RENBTC', 'GLM', 'RAY', 'NEAR', 'AUDIO', 'HNT', 'ADADOWN', 'CDT', 'SPARTA', 'SUSD', 'FARM', 'XNO', 'AION', 'NPXS', 'DGB', 'ZRX', 'BCD', 'EASY', 'SANTOS', 'WING', 'WNXM', 'BCH', 'JST', 'ADAUP', 'HOT', 'AR', 'IRIS', 'RAMP', 'BCX', 'SEK', 'TRIG', 'RCN', 'COVER', 'FLM', 'GNO', 'VITE', 'GNT', 'BKRW', 'CFX', 'XPR', 'SFP', 'DIA', 'RDN', 'ACA', 'ARDR', 'LOOMOLD', 'NEBL', 'ACH', 'SLPOLD', 'BEL', 'JUV', 'ACM', 'MINA', 'GRTDOWN', 'VTHO', 'PYROLD', 'SGB', 'SALT', 'STORM', 'REN', 'REP', 'ADA', 'ELF', 'REQ', 'STORJ', 'CHF', 'ADD', 'BZRX', 'SGT', 'DF', 'RARE', 'EOSDOWN', 'PAXG', 'YOYO', 'PAX', 'CHR', 'VND', 'BCHDOWN', 'WAVES', 'CHZ', 'ADX', 'XRP', 'WPR', 'JASMY', 'AED', 'FIDA', 'SAND', 'DKK', 'OCEAN', 'FOR', 'UMA', 'DREPOLD', 'SCRT', 'TUSD', 'EZ', 'TKO', 'WABI', 'RGT', 'IDRT', 'ENG', 'ENJ', 'UNIDOWN', 'YFII', 'KZT', 'OAX', 'GRT', 'GRS', 'UND', 'HARD', 'TFUEL', 'ENS', 'LEND', 'DLT', 'TROY', 'XLMUP', 'UNI', 'BTCDOWN', 'TLM', 'HUF', 'SBTC', 'CKB', 'WRX', 'XTZ', 'LUNA', 'ETHDOWN', 'AGI', 'BCHA', 'EON', 'EOP', 'EOS', 'GO', 'NCASH', 'RIF', 'NSBT', 'SKL', 'XDATA', 'GTC', 'PEN', 'BLINK', 'SOLO', 'SXPDOWN', 'HC', 'SKY', 'BURGER', 'NAS', 'NAV', 'GTO', 'WTC', 'XVG', 'EPS', 'DNT', 'CLV', 'FLOW', 'XTZDOWN', 'XVS', 'STEEM', 'BVND', 'SLP', 'VRT', 'NBS', 'DON', 'LAZIO', 'DOT', 'IQ', 'GRTUP', '1INCH', 'KNCL', 'CHESS', 'MITH', 'ERD', 'DEGO', 'CND', 'GYEN', 'UNFI', 'FTM', 'POWR', 'ERN', 'GVT', 'WINGS', 'FTT', 'VOXEL', 'PHA', 'RLC', 'PHB', 'TRXDOWN', 'ATOM', 'XRPUP', 'QUICK', 'BLZ', 'SNM', 'BOBA', 'MBL', 'MTLX', 'SNT', 'PHP', 'SNX', 'LTCDOWN', 'FUN', 'SNMOLD', 'COP', 'COS', 'API3', 'USD', 'QKC', 'SUSHIUP', 'ROSE', 'GLMR', 'XYM', 'PURSE', 'SOL', 'TRXUP', 'CITY', 'ETC', 'BNC', 'CELR', 'UST', 'OGN', 'ETH', 'NEO', 'TOMO', 'CELO', 'KLAY', 'AUCTION', 'BADGER', 'HIGH', 'GXS', 'TRB', 'BNT', 'QLC', 'LBA', 'MDA', 'BNX', 'UTK', 'WSOL', 'HEGIC', 'MA', 'AMB', 'MC', 'TRU', 'FUEL', 'DREP', 'TRY', 'TRX', 'MDT', 'NFT', 'MDX', 'XRPDOWN', 'AERGO', 'EUR', 'AMP', 'BOT', 'NULS', 'AUTO', 'NGN', 'ANC', 'BDOT', 'EGLD', 'ANTOLD', 'SPELL', 'PUNDIX', 'FXS', 'PLA', 'HNST', 'EVX', 'CRV', 'BAKE', 'ANT', 'NU', 'FLUX', 'ANY', 'LINKUP', 'SRM', 'QISWAP', 'TORN', 'PLN', 'QNT', 'ALICE', 'OG', 'MFT', 'OM', 'BTTOLD', 'BETH', 'BQX', 'WETH', 'PHBV1', 'BETA', 'BRD', 'SSV', 'BUSD', 'CTK', 'ARPA', 'DOTDOWN', 'BRL', 'ALCX', 'CTR', 'MATIC', 'IOTX', 'SHIB', 'TVK', 'FRONT', 'ZAR', 'DOCK', 'STX', 'PNT', 'QI', 'DENT', 'MBOX', 'SUB', 'POA', 'IOST', 'CAKE', 'ETHUP', 'POE', 'OMG', 'BAND', 'SUN', 'ASTR', 'SUNOLD', 'BTC', 'TWT', 'NKN', 'RSR', 'IOTA', 'CVC', 'REEF', 'BTG', 'MIR', 'KES', 'ARK', 'LOKA', 'CVP', 'ARN', 'KEY', 'BTS', 'SPARTAOLD', 'ARS', 'CVX', 'ONE', 'LINKDOWN', 'ONG', 'ANKR', 'SUSHI', 'ALGO', 'SC', 'WBTC', 'ONT', 'PPT', 'ONX', 'BTTC', 'RUB', 'PIVX', 'ASR', 'FIRO', 'AXSOLD', 'AST', 'MANA', 'DOTUP', 'ATA', 'MEETONE', 'QSP', 'ATD', 'NMR', 'MKR', 'DODO', 'LIT', 'ICP', 'ZEC', 'ATM', 'APPC', 'JEX', 'ICX', 'LOOM', 'ZEN', 'KP3R', 'DOGE', 'DUSK', 'ALPHA', 'BOLT', 'SXP', 'HBAR', 'RVN', 'MLN', 'AUD', 'LTOOLD', 'IDR', 'CTSI', 'KAVA', 'C98', 'PSG', 'HCC', 'VIDT', 'NOK', 'AVA', 'SYS', 'COCOS', 'STRAX', 'EOSUP', 'CZK', 'GAS', 'COVEROLD', 'AAVEDOWN', 'THETA', 'BCHUP', 'WAN', 'ORN', 'PERL', 'XLMDOWN', 'MASK', 'AAVE', 'GBP', 'PERP', '1INCHUP', 'SXPUP', 'YFIDOWN', 'BOND', 'YFI', 'PERLOLD', 'MOD', 'BICO', 'OST', 'XEC', 'YGG', 'PEOPLE', 'AXS', 'ZIL', 'VAI', 'XEM', 'CTXC', 'KEYFI', 'XTZUP', 'BIDR', 'BCHSV', 'AAVEUP', 'SUSHIDOWN', 'COMP', 'ETHBNT', 'OMOLD', 'OOKI', 'RUNE', 'FORTH', 'KMD', 'GHST', 'IDEX', 'DEXE', 'AVAX', 'UAH', 'KNC', 'PROS', 'PROM', 'BTCUP', 'CHAT', 'BGBP', 'LPT', 'HIVE', 'BIFI', 'PORTO', 'SNGLS', 'PYR', 'WAXP', 'DAI', 'YFIUP', 'DAR', 'FET', 'LRC', 'REPV1', 'ADXOLD', 'MTH', 'MTL', 'VET', 'ALPACA', 'USDT', 'USDS', 'OXT', 'USDP', 'DASH', 'NVT', 'SWRV', 'EDO', 'ILV', 'GHS', 'BTCST', 'HKD', 'JOE', 'LSK', 'KEEP', 'CAD', 'BEAM', 'CAN', 'DCR', 'CREAM', 'DATA', 'IMX', 'ENTRP', 'FILUP', 'UNIUP', 'LTC', 'USDC', 'WIN', 'LTCUP', 'INJ', 'TCT', 'PARA', 'LTO', 'VGX', 'TRIBE', 'NXS', 'EFI', 'DYDX', 'AGIX', 'INR', 'CBK', 'CBM', 'INS', 'POND', 'JPY', 'LINA', 'XLM', 'LINK', 'QTUM', 'FILDOWN', 'SUPER', 'UFT', 'POLS', 'KSM', 'LUN', 'FIL', 'POLY', 'STMX', 'RNDR', 'BAL', 'FIO', 'GALA', 'VIB', 'VIA', 'FIS', 'BAR', 'RAD', 'BAT', 'VRAB', 'AKRO', 'NZD', 'MOVR', 'XMR', '1INCHDOWN', 'COTI']
@@ -99,8 +101,8 @@ class n_arbitrage:
         self.triangle_profit_result = 0.0
         self.summa_amount_USDT = 0.0
         
-    def get_triangle_profit_by_spread(self, arb):
-        self.triangle_profit_result = self.spread_mod * self.convert_multiplier[arb[0] + arb[1]] * self.convert_multiplier[arb[1] + arb[2]] * self.convert_multiplier[arb[2] + arb[3]]
+    def get_triangle_profit(self, arb):
+        self.triangle_profit_result = self.official_fee_mod * self.convert_multiplier[arb[0] + arb[1]] * self.convert_multiplier[arb[1] + arb[2]] * self.convert_multiplier[arb[2] + arb[3]]
         return self.triangle_profit_result
 
     async def open_binance_client(self):
@@ -185,8 +187,6 @@ class n_arbitrage:
             
         print("Summa in USDT:", summa_in_USDT, "Profit:", round(summa_in_USDT - self.summa_amount_USDT, 8))
         self.summa_amount_USDT = summa_in_USDT
-        if summa_in_USDT < self.stop_tradeing_at_USDT:
-            sys.exit()
         
     def refresh_estimated_amount(self):
         self.account = self.get_account()
@@ -285,7 +285,7 @@ class n_arbitrage:
         print(" etimated amount from_symbol", estimated_amount[from_symbol])
         if side == "BUY":
             trade_qty = (estimated_amount[from_symbol] * self.convert_multiplier[from_symbol + to_symbol])
-            rounded_trade_qty = round_step_size(trade_qty - step_size - step_size, step_size)
+            rounded_trade_qty = round_step_size(trade_qty - step_size, step_size)
             # if rounded_trade_qty > min_qt:
             print("trade_qty", trade_qty)
             print("price", self.convert_multiplier[from_symbol + to_symbol])
@@ -654,9 +654,9 @@ class n_arbitrage:
 if __name__ == '__main__':
     n_arb = n_arbitrage()
     n_arb.start()
-    print("Start Trade -------------------")
+    # print("Start Trade -------------------")
     # n_arb.print_estimated_amount()
-    for i in range(20):
+    for i in range(5):
         print("\r", i, end="")
         time.sleep(1)
 
@@ -719,11 +719,11 @@ if __name__ == '__main__':
             # triangel_profit = n_arb.official_fee_mod * n_arb.pairs_tune[arb[0] + arb[1]] * n_arb.pairs_tune[arb[1] + arb[2]] * n_arb.pairs_tune[arb[2] + arb[3]]
             # print(triangel_profit)
             # est_profit =
-            if arb[0] in n_arb.arb_symbols and len(arb) == 4 and n_arb.get_triangle_profit_by_spread(arb) > 1:
+            if arb[0] in n_arb.arb_symbols and len(arb) == 4 and n_arb.get_triangle_profit(arb) > 1:
                 print("Est profit", n_arb.triangle_profit_result, "   Prices:   ", n_arb.convert_multiplier[arb[0] + arb[1]], n_arb.convert_multiplier[arb[1] + arb[2]], n_arb.convert_multiplier[arb[2] + arb[3]])
                 # print("Est profit", n_arb.triangle_profit_result, "   Prices:   ", 1 / n_arb.convert_multiplier[arb[0] + arb[1]], 1 / n_arb.convert_multiplier[arb[1] + arb[2]], 1 / n_arb.convert_multiplier[arb[2] + arb[3]])
 
-                # print(traded_triangle_count, arb)
+                print(traded_triangle_count, arb)
                 # print(n_arb.pairs_tune[arb[0] + arb[1]], n_arb.pairs_tune[arb[1] + arb[2]], n_arb.pairs_tune[arb[2] + arb[3]])
                 # sys.exit(0)
                 # break
@@ -734,9 +734,9 @@ if __name__ == '__main__':
                 # print(traded_triangle_count, arb, n_arb.pairs_tune[arb[0] + arb[1]], n_arb.pairs_tune[arb[1] + arb[2]], n_arb.pairs_tune[arb[2] + arb[3]])
                 # traded_triangle_count += 1
                 # print(traded_triangle_count, "Start trade triangle:                           ", arb)
-                n_arb.trade_triangle(arb)
+                # n_arb.trade_triangle(arb)
                 traded_triangle_count += 1
-                n_arb.print_estimated_amount()
+                # n_arb.print_estimated_amount()
                 # winsound.Beep(800, 1000)
                 print("Time:", time.time() - start2)
                 break
