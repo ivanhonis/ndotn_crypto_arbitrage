@@ -1,7 +1,5 @@
-for i in range(10):
-	print(i)
-	if i == 5:
-		break
-		print("segg")
-		
-print("vége")
+
+a = ['ccc', 'ccc', 'ccc', 'ccc']
+b = ['BTC', 'NULS', 'USDT', 'BTC']
+a = b + a
+print(a)

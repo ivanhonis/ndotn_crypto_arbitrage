@@ -1,4 +1,3 @@
-print("itt")
 # import sys
 import asyncio
 
@@ -35,7 +34,7 @@ class n_arbitrage:
 
     def __init__(self):
         self.arb_symbols = ['USDT']
-        self.official_fee = 0.1  # %   for profit triangle profit calc
+        self.official_fee = 0.075  # %   for profit triangle profit calc
         self.spread = 0.9  # %
         # self.gap = 0.07  # %
         self.arb_check_delay = 0.00  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
@@ -616,8 +615,8 @@ class n_arbitrage:
                 s1 = self.selected_pairs[res['data']['s']][0]
                 s2 = self.selected_pairs[res['data']['s']][1]
 
-                self.convert_multiplier[s1 + s2] = self.df[s1][s2] = float(res['data']['b']) * self.spread_mod
-                self.convert_multiplier[s2 + s1] = self.df[s2][s1] = (1 / float(res['data']['a'])) * self.spread_mod
+                self.convert_multiplier[s1 + s2] = self.df[s1][s2] = float(res['data']['b'])
+                self.convert_multiplier[s2 + s1] = self.df[s2][s1] = (1 / float(res['data']['a']))
 
                 # self.df_save[s1][s2] = float(res['data']['b'])
                 # self.df_save[s2][s1] = float(res['data']['a'])

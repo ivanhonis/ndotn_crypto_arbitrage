@@ -1,4 +1,5 @@
 #python 3.7 !!!!!
-!pip install pandas
-!pip install networkx
-!pip install python-binance
+pip install pandas
+pip install networkx
+pip install python-binance
+pip install requests
