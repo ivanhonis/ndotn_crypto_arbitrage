@@ -84,11 +84,11 @@ class n_arbitrage:
 		self.selected_symbols = self.symbols[:90]  ## kiválasztam amivel dolgozok
 		self.commission = self.defa_commission()
 		self.selected_pairs = self.defa_selected_pairs()  ##a kiválasztott szimbólumokhoz kapcsolódó párokat kiválasztom
-		self.df = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
-		self.df = self.df.astype(float)
+		# self.df = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
+		# self.df = self.df.astype(float)
 		
-		self.df_save = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
-		self.df_save = self.df.astype(float)
+		# self.df_save = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
+		# self.df_save = self.df.astype(float)
 		
 		# self.df_fee = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
 		# self.df_fee = self.df.astype(float)
@@ -97,7 +97,9 @@ class n_arbitrage:
 		# self.df_sim_price = self.df.astype(float)
 		
 		self.convert_multiplier = self.defa_convert_multiplier()
-		
+		self.avg_spread = []
+
+
 		self.socket_list = self.defa_socket_list()
 		
 		# self.riport.live_text = self.get_settings()
@@ -257,12 +259,12 @@ class n_arbitrage:
 	#     i_selected_symbols_frequency[-1] = 0
 	#     return i_selected_symbols_frequency
 	
-	def defa_convert_multiplier(self):
+	def defa_convert_multiplier(self, start_val=1.0):
 		i_selected_pairs = {}
 		for si1 in self.selected_symbols:
 			for si2 in self.selected_symbols:
-				i_selected_pairs[si1 + si2] = 1.0
-				i_selected_pairs[si2 + si1] = 1.0
+				i_selected_pairs[si1 + si2] = start_val
+				i_selected_pairs[si2 + si1] = start_val
 		return i_selected_pairs
 	
 	def defa_selected_pairs(self):
@@ -612,8 +614,8 @@ class n_arbitrage:
 				s1 = self.selected_pairs[res['data']['s']][0]
 				s2 = self.selected_pairs[res['data']['s']][1]
 				
-				self.convert_multiplier[s1 + s2] = self.df[s1][s2] = float(res['data']['b'])
-				self.convert_multiplier[s2 + s1] = self.df[s2][s1] = (1 / float(res['data']['a']))
+				self.convert_multiplier[s1 + s2] = float(res['data']['b'])
+				self.convert_multiplier[s2 + s1] = (1 / float(res['data']['a']))
 				
 		# self.df_save[s1][s2] = float(res['data']['b'])
 		# self.df_save[s2][s1] = float(res['data']['a'])
