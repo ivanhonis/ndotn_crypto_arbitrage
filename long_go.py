@@ -28,15 +28,15 @@ from binance.helpers import round_step_size
 class n_arbitrage:
 	
 	def __init__(self):
-		self.arb_symbols = ['USDT', 'BUSD']
+		# self.arb_symbols = ['USDT', 'BUSD']
 		self.official_fee = 0.075  # %   for profit triangle profit calc
-		self.spread = 0.0  # %
+		self.spread = 0.095  # %
 		# self.gap = 0.07  # %
-		self.arb_check_delay = 0.00  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
+		# self.arb_check_delay = 0.00  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
 		# self.riport = n_riport()
-		self.stop_tradeing_at_USDT = 60
+		# self.stop_tradeing_at_USDT = 60
 		
-		self.socket_thread = None
+		# self.socket_thread = None
 		# self.stop_thread = None
 		
 		self.api_key = "DAqss9T987L0ruIbVEW9rBEFDD2sKxEKBvpvDVUJfdjijzqPqBgD8semkNF2I5Ul"
@@ -46,33 +46,35 @@ class n_arbitrage:
 		self.exchange_info = self.get_exchange_info()
 		
 		# self.gap_mod = 1 - (self.gap / 100)
-		self.spread_mod = (1 - (self.spread / 100)) ** 3
-		self.official_fee_mod = (1 - (self.official_fee / 100)) ** 3
-		
+		# self.spread_mod = (1 - (self.spread / 100)) ** 3
+		self.official_fee_mod = 1 - (self.official_fee / 100)
+		self.spread_mod = 1 - (self.spread / 100)
 		# self.symbols = ['AGLD', 'STPT', 'MXN', 'UGX', 'RENBTC', 'GLM', 'RAY', 'NEAR', 'AUDIO', 'HNT', 'ADADOWN', 'CDT', 'SPARTA', 'SUSD', 'FARM', 'XNO', 'AION', 'NPXS', 'DGB', 'ZRX', 'BCD', 'EASY', 'SANTOS', 'WING', 'WNXM', 'BCH', 'JST', 'ADAUP', 'HOT', 'AR', 'IRIS', 'RAMP', 'BCX', 'SEK', 'TRIG', 'RCN', 'COVER', 'FLM', 'GNO', 'VITE', 'GNT', 'BKRW', 'CFX', 'XPR', 'SFP', 'DIA', 'RDN', 'ACA', 'ARDR', 'LOOMOLD', 'NEBL', 'ACH', 'SLPOLD', 'BEL', 'JUV', 'ACM', 'MINA', 'GRTDOWN', 'VTHO', 'PYROLD', 'SGB', 'SALT', 'STORM', 'REN', 'REP', 'ADA', 'ELF', 'REQ', 'STORJ', 'CHF', 'ADD', 'BZRX', 'SGT', 'DF', 'RARE', 'EOSDOWN', 'PAXG', 'YOYO', 'PAX', 'CHR', 'VND', 'BCHDOWN', 'WAVES', 'CHZ', 'ADX', 'XRP', 'WPR', 'JASMY', 'AED', 'FIDA', 'SAND', 'DKK', 'OCEAN', 'FOR', 'UMA', 'DREPOLD', 'SCRT', 'TUSD', 'EZ', 'TKO', 'WABI', 'RGT', 'IDRT', 'ENG', 'ENJ', 'UNIDOWN', 'YFII', 'KZT', 'OAX', 'GRT', 'GRS', 'UND', 'HARD', 'TFUEL', 'ENS', 'LEND', 'DLT', 'TROY', 'XLMUP', 'UNI', 'BTCDOWN', 'TLM', 'HUF', 'SBTC', 'CKB', 'WRX', 'XTZ', 'LUNA', 'ETHDOWN', 'AGI', 'BCHA', 'EON', 'EOP', 'EOS', 'GO', 'NCASH', 'RIF', 'NSBT', 'SKL', 'XDATA', 'GTC', 'PEN', 'BLINK', 'SOLO', 'SXPDOWN', 'HC', 'SKY', 'BURGER', 'NAS', 'NAV', 'GTO', 'WTC', 'XVG', 'EPS', 'DNT', 'CLV', 'FLOW', 'XTZDOWN', 'XVS', 'STEEM', 'BVND', 'SLP', 'VRT', 'NBS', 'DON', 'LAZIO', 'DOT', 'IQ', 'GRTUP', '1INCH', 'KNCL', 'CHESS', 'MITH', 'ERD', 'DEGO', 'CND', 'GYEN', 'UNFI', 'FTM', 'POWR', 'ERN', 'GVT', 'WINGS', 'FTT', 'VOXEL', 'PHA', 'RLC', 'PHB', 'TRXDOWN', 'ATOM', 'XRPUP', 'QUICK', 'BLZ', 'SNM', 'BOBA', 'MBL', 'MTLX', 'SNT', 'PHP', 'SNX', 'LTCDOWN', 'FUN', 'SNMOLD', 'COP', 'COS', 'API3', 'USD', 'QKC', 'SUSHIUP', 'ROSE', 'GLMR', 'XYM', 'PURSE', 'SOL', 'TRXUP', 'CITY', 'ETC', 'BNC', 'CELR', 'UST', 'OGN', 'ETH', 'NEO', 'TOMO', 'CELO', 'KLAY', 'AUCTION', 'BADGER', 'HIGH', 'GXS', 'TRB', 'BNT', 'QLC', 'LBA', 'MDA', 'BNX', 'UTK', 'WSOL', 'HEGIC', 'MA', 'AMB', 'MC', 'TRU', 'FUEL', 'DREP', 'TRY', 'TRX', 'MDT', 'NFT', 'MDX', 'XRPDOWN', 'AERGO', 'EUR', 'AMP', 'BOT', 'NULS', 'AUTO', 'NGN', 'ANC', 'BDOT', 'EGLD', 'ANTOLD', 'SPELL', 'PUNDIX', 'FXS', 'PLA', 'HNST', 'EVX', 'CRV', 'BAKE', 'ANT', 'NU', 'FLUX', 'ANY', 'LINKUP', 'SRM', 'QISWAP', 'TORN', 'PLN', 'QNT', 'ALICE', 'OG', 'MFT', 'OM', 'BTTOLD', 'BETH', 'BQX', 'WETH', 'PHBV1', 'BETA', 'BRD', 'SSV', 'BUSD', 'CTK', 'ARPA', 'DOTDOWN', 'BRL', 'ALCX', 'CTR', 'MATIC', 'IOTX', 'SHIB', 'TVK', 'FRONT', 'ZAR', 'DOCK', 'STX', 'PNT', 'QI', 'DENT', 'MBOX', 'SUB', 'POA', 'IOST', 'CAKE', 'ETHUP', 'POE', 'OMG', 'BAND', 'SUN', 'ASTR', 'SUNOLD', 'BTC', 'TWT', 'NKN', 'RSR', 'IOTA', 'CVC', 'REEF', 'BTG', 'MIR', 'KES', 'ARK', 'LOKA', 'CVP', 'ARN', 'KEY', 'BTS', 'SPARTAOLD', 'ARS', 'CVX', 'ONE', 'LINKDOWN', 'ONG', 'ANKR', 'SUSHI', 'ALGO', 'SC', 'WBTC', 'ONT', 'PPT', 'ONX', 'BTTC', 'RUB', 'PIVX', 'ASR', 'FIRO', 'AXSOLD', 'AST', 'MANA', 'DOTUP', 'ATA', 'MEETONE', 'QSP', 'ATD', 'NMR', 'MKR', 'DODO', 'LIT', 'ICP', 'ZEC', 'ATM', 'APPC', 'JEX', 'ICX', 'LOOM', 'ZEN', 'KP3R', 'DOGE', 'DUSK', 'ALPHA', 'BOLT', 'SXP', 'HBAR', 'RVN', 'MLN', 'AUD', 'LTOOLD', 'IDR', 'CTSI', 'KAVA', 'C98', 'PSG', 'HCC', 'VIDT', 'NOK', 'AVA', 'SYS', 'COCOS', 'STRAX', 'EOSUP', 'CZK', 'GAS', 'COVEROLD', 'AAVEDOWN', 'THETA', 'BCHUP', 'WAN', 'ORN', 'PERL', 'XLMDOWN', 'MASK', 'AAVE', 'GBP', 'PERP', '1INCHUP', 'SXPUP', 'YFIDOWN', 'BOND', 'YFI', 'PERLOLD', 'MOD', 'BICO', 'OST', 'XEC', 'YGG', 'PEOPLE', 'AXS', 'ZIL', 'VAI', 'XEM', 'CTXC', 'KEYFI', 'XTZUP', 'BIDR', 'BCHSV', 'AAVEUP', 'SUSHIDOWN', 'COMP', 'ETHBNT', 'OMOLD', 'OOKI', 'RUNE', 'FORTH', 'KMD', 'GHST', 'IDEX', 'DEXE', 'AVAX', 'UAH', 'KNC', 'PROS', 'PROM', 'BTCUP', 'CHAT', 'BGBP', 'LPT', 'HIVE', 'BIFI', 'PORTO', 'SNGLS', 'PYR', 'WAXP', 'DAI', 'YFIUP', 'DAR', 'FET', 'LRC', 'REPV1', 'ADXOLD', 'MTH', 'MTL', 'VET', 'ALPACA', 'USDT', 'USDS', 'OXT', 'USDP', 'DASH', 'NVT', 'SWRV', 'EDO', 'ILV', 'GHS', 'BTCST', 'HKD', 'JOE', 'LSK', 'KEEP', 'CAD', 'BEAM', 'CAN', 'DCR', 'CREAM', 'DATA', 'IMX', 'ENTRP', 'FILUP', 'UNIUP', 'LTC', 'USDC', 'WIN', 'LTCUP', 'INJ', 'TCT', 'PARA', 'LTO', 'VGX', 'TRIBE', 'NXS', 'EFI', 'DYDX', 'AGIX', 'INR', 'CBK', 'CBM', 'INS', 'POND', 'JPY', 'LINA', 'XLM', 'LINK', 'QTUM', 'FILDOWN', 'SUPER', 'UFT', 'POLS', 'KSM', 'LUN', 'FIL', 'POLY', 'STMX', 'RNDR', 'BAL', 'FIO', 'GALA', 'VIB', 'VIA', 'FIS', 'BAR', 'RAD', 'BAT', 'VRAB', 'AKRO', 'NZD', 'MOVR', 'XMR', '1INCHDOWN', 'COTI']
 		
-		self.symbols = ['BTC', 'ETH', 'ADA', 'LINK', 'DOT', 'TRX', 'FTM', 'SOL', 'BUSD',
-						'USDT', 'MATIC', 'ETC', 'NEO', 'ENJ', 'WAVES', 'ATOM', 'ONE', 'ZEC',
-						'ONT', 'HOT', 'CHZ', 'WIN', 'AXS', 'GALA', 'ANKR', 'RUNE', 'ICP', 'LRC',
-						'ZIL', 'BCHABC', 'TFUEL', 'ERD', 'DUSK', 'ARPA', 'EGLD', 'UNI', 'GRT', 'FIS',
-						'ALICE', 'NU', 'QTUM', 'ZRX', 'OMG', 'STRAT', 'IOTA', 'REP', 'ADX', 'NULS',
-						'DASH', 'POWR', 'XMR', 'BTS', 'XZC', 'LSK', 'LEND', 'ICX', 'AION', 'RLC',
-						'IOST', 'NANO', 'BLZ', 'SYS', 'XEM', 'TUSD', 'ZEN', 'SC', 'DENT', 'RVN',
-						'USDC', 'BCHSV', 'PHB', 'COCOS', 'TOMO', 'XTZ', 'WRX', 'CHR', 'STMX', 'YFI',
-						'SRM', 'KSM', 'SUSHI', 'BEL', 'NEAR', 'SLP', 'REEF', 'C98', 'MINA', 'VOXEL']
+		# self.symbols = ['BTC', 'ETH', 'ADA', 'LINK', 'DOT', 'TRX', 'FTM', 'SOL', 'BUSD',
+		# 				'USDT', 'MATIC', 'ETC', 'NEO', 'ENJ', 'WAVES', 'ATOM', 'ONE', 'ZEC',
+		# 				'ONT', 'HOT', 'CHZ', 'WIN', 'AXS', 'GALA', 'ANKR', 'RUNE', 'ICP', 'LRC',
+		# 				'ZIL', 'BCHABC', 'TFUEL', 'ERD', 'DUSK', 'ARPA', 'EGLD', 'UNI', 'GRT', 'FIS',
+		# 				'ALICE', 'NU', 'QTUM', 'ZRX', 'OMG', 'STRAT', 'IOTA', 'REP', 'ADX', 'NULS',
+		# 				'DASH', 'POWR', 'XMR', 'BTS', 'XZC', 'LSK', 'LEND', 'ICX', 'AION', 'RLC',
+		# 				'IOST', 'NANO', 'BLZ', 'SYS', 'XEM', 'TUSD', 'ZEN', 'SC', 'DENT', 'RVN',
+		# 				'USDC', 'BCHSV', 'PHB', 'COCOS', 'TOMO', 'XTZ', 'WRX', 'CHR', 'STMX', 'YFI',
+		# 				'SRM', 'KSM', 'SUSHI', 'BEL', 'NEAR', 'SLP', 'REEF', 'C98', 'MINA', 'VOXEL']
+
+		self.symbols = ['DOT', 'USDT']
 		
 		# OFF BNB
 		
 		self.all_pairs = self.defa_all_pairs()
 		
-		self.selected_symbols = self.symbols[:50]  ## kiválasztam amivel dolgozok
-		self.commission = self.defa_commission()
+		self.selected_symbols = self.symbols ## kiválasztam amivel dolgozok
+		# self.commission = self.defa_commission()
 		self.selected_pairs = self.defa_selected_pairs()  ##a kiválasztott szimbólumokhoz kapcsolódó párokat kiválasztom
-		self.df = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
-		self.df = self.df.astype(float)
+		# self.df = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
+		# self.df = self.df.astype(float)
 		
-		self.df_save = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
-		self.df_save = self.df.astype(float)
+		# self.df_save = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
+		# self.df_save = self.df.astype(float)
 		
 		# self.df_fee = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
 		# self.df_fee = self.df.astype(float)
@@ -81,6 +83,7 @@ class n_arbitrage:
 		# self.df_sim_price = self.df.astype(float)
 		
 		self.convert_multiplier = self.defa_convert_multiplier()
+		self.current_price = self.defa_current_price()
 		
 		self.socket_list = self.defa_socket_list()
 		
@@ -93,11 +96,19 @@ class n_arbitrage:
 		self.triangle_profit_result = 0.0
 		self.summa_amount_USDT = 0.0
 	
+	def defa_current_price(self):
+		i_current_price = {}
+		for si1 in self.selected_symbols:
+			for si2 in self.selected_symbols:
+				i_current_price[si1 + si2] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+				i_current_price[si2 + si1] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+		return i_current_price
+	
 	def get_triangle_profit_by_spread(self, arb):
 		arb_len = len(arb)
-		self.triangle_profit_result = (1-(self.spread / 100)) ** arb_len
+		self.triangle_profit_result = (1 - (self.spread / 100)) ** arb_len
 		for i in range(arb_len - 1):
-			self.triangle_profit_result *= self.convert_multiplier[arb[i] + arb[i+1]]
+			self.triangle_profit_result *= self.convert_multiplier[arb[i] + arb[i + 1]]
 		return self.triangle_profit_result
 	
 	async def open_binance_client(self):
@@ -219,7 +230,7 @@ class n_arbitrage:
 					min_qty = float(filters['minQty'])
 					pair_info[si1 + si2] = [si1 + si2, "SELL", step_size, min_qty]
 					pair_info[si2 + si1] = [si1 + si2, "BUY", step_size, min_qty]
-			# ez egy miről mire megyek katalógus
+		# ez egy miről mire megyek katalógus
 		return pair_info
 	
 	def defa_all_pairs(self):
@@ -232,6 +243,7 @@ class n_arbitrage:
 		i_socket_list = []
 		for sp in tuple(self.selected_pairs.keys()):
 			i_socket_list.append(sp.lower() + '@bookTicker')
+			i_socket_list.append(sp.lower() + '@trade')
 		return i_socket_list
 	
 	# def defa_symbols_frequency(self):
@@ -591,13 +603,18 @@ class n_arbitrage:
 		async with ts as tscm:
 			while True:
 				res = await tscm.recv()
+				# print(res)
+				if res["stream"][-5:] == "trade":
+					self.current_price[res['data']['s']].append(float(res['data']['p']))
+					self.current_price[res['data']['s']] = self.current_price[res['data']['s']][1:11]
+					# print(self.current_price[res['data']['s']])
+				else:
+					s1 = self.selected_pairs[res['data']['s']][0]
+					s2 = self.selected_pairs[res['data']['s']][1]
 				
-				s1 = self.selected_pairs[res['data']['s']][0]
-				s2 = self.selected_pairs[res['data']['s']][1]
-				
-				self.convert_multiplier[s1 + s2] = self.df[s1][s2] = float(res['data']['b'])
-				self.convert_multiplier[s2 + s1] = self.df[s2][s1] = (1 / float(res['data']['a']))
-				
+					self.convert_multiplier[s1 + s2] = float(res['data']['b'])
+					self.convert_multiplier[s2 + s1] = (1 / float(res['data']['a']))
+		
 		# self.df_save[s1][s2] = float(res['data']['b'])
 		# self.df_save[s2][s1] = float(res['data']['a'])
 		
@@ -632,7 +649,7 @@ class n_arbitrage:
 if __name__ == '__main__':
 	n_arb = n_arbitrage()
 	n_arb.start()
-	print("Start Trade -------------------")
+	print("Start Long go -------------------")
 	# n_arb.print_estimated_amount()
 	for i in range(5):
 		print("\r", i, end="")
@@ -665,143 +682,170 @@ if __name__ == '__main__':
 	# print("Stop Trade -------------------")
 	for i in range(5):
 		print(" ")
-	print("Number of pairs:", len(n_arb.selected_pairs))
-	print("Profit fee:", n_arb.official_fee)
-	print("Spread:", n_arb.spread)
-	print("Start symbol:", n_arb.arb_symbols)
-	print("arb_chk_delay:", n_arb.arb_check_delay)
-	print("Start n_arb_trader_server ....................................")
-	n_arb.print_estimated_amount()
-	# print(n_arb.commission)
-	# sys.exit(0)
-	start2 = time.time()
-	# for es in n_arb.exchange_info["symbols"]:
-	#     if es["symbol"] == "NULSBNB" or es["symbol"] == "BNBUSDT":
-	#         print(es)
-	
-	# n_arb.riport.create("A1_symbol_frequency",
-	#                     "Arbitrazsban erintett symbol-ok gyakorisaga, leggyakoribb tirangles, leggyakoribb kezdo symbol-ok")
-	
-	# sys.exit(0)
-	# all_arb_count = 0
-	# profit_arr = []
-	# profit_arr_save = []
-	# transactions_count = 0
-	# circle_count = 0
-	# live_update_val = int((1/n_arb.arb_check_delay) * 60 * live_update)
-	traded_triangle_count = 0
-	start_amount = 1000
-	start_amount_avg = 1000
+		
+	convert_array = [1]
+	position = "SHORT"
+	save_sum = 0
+	orig_pair = "DOTUSDT"
+	invert_pair = "USDTDOT"
 	while True:
-		# time.sleep(n_arb.arb_check_delay)
-		# n_arb.df_save.to_clipboard(excel=True)
-		for arb in n_arb.arb_find(n_arb.arb_symbols):  # ez egyben egy if is :)
-			# if arb[0] in n_arb.arb_symbols:
-				# print('\r ', arb, " " * 30, end="")
-			# triangel_profit = n_arb.official_fee_mod * n_arb.pairs_tune[arb[0] + arb[1]] * n_arb.pairs_tune[arb[1] + arb[2]] * n_arb.pairs_tune[arb[2] + arb[3]]
-			# print(triangel_profit)
-			# est_profit =
-			if arb[0] in n_arb.arb_symbols and len(arb) == 4 and n_arb.get_triangle_profit_by_spread(arb) > 1:
-				# print("-")
-				# print("-")
-				spr = int((((1 / n_arb.convert_multiplier[arb[3] + arb[2]]) / n_arb.convert_multiplier[arb[2] + arb[3]] ) - 1) * 100000)
+		print("\r", round(((n_arb.spread_mod ** 2) * convert_array[-1] * n_arb.convert_multiplier[orig_pair]), 3), end="")
+		if len(n_arb.current_price[orig_pair]) == 10 and sum(n_arb.current_price[orig_pair]) != save_sum and \
+				n_arb.current_price[orig_pair][-1] > n_arb.current_price[orig_pair][-2] < \
+				n_arb.current_price[orig_pair][-3] and position == "SHORT":
+			position = "LONG"
 
-				a = n_arb.convert_multiplier[arb[0] + arb[-2]]
-				# print("Est profit", n_arb.triangle_profit_result, "   Prices:   ",
-				# 	  n_arb.convert_multiplier[arb[0] + arb[1]], n_arb.convert_multiplier[arb[1] + arb[2]],
-				# 	  n_arb.convert_multiplier[arb[2] + arb[3]])
-				pa = []
-				for i in range(300):
-					time.sleep(.01)
-					pa.append(((1-(n_arb.official_fee/100)) ** 2) * a * n_arb.convert_multiplier[arb[-2] + arb[-1]])
-				# start_amount *= max(pa)
-				# start_amount_avg *= (max(pa) + min(pa) + 1) / 3
-				# print(" Profit min, max / spread:", min(pa), max(pa), "/", spr, "1000 USDT:", start_amount, start_amount_avg)
-				# if max(pa) > 1:
-				print(traded_triangle_count, arb)
-				print(" Profit min, max / spread:", min(pa), max(pa), "/", spr)
-
-				# print("Est profit", n_arb.triangle_profit_result, "   Prices:   ", 1 / n_arb.convert_multiplier[arb[0] + arb[1]], 1 / n_arb.convert_multiplier[arb[1] + arb[2]], 1 / n_arb.convert_multiplier[arb[2] + arb[3]])
-				
-				# print(traded_triangle_count, arb)
-				# print(n_arb.pairs_tune[arb[0] + arb[1]], n_arb.pairs_tune[arb[1] + arb[2]], n_arb.pairs_tune[arb[2] + arb[3]])
-				# sys.exit(0)
-				# break
-				# profit_tunel_avg = (n_arb.pairs_tune[arb[0] + arb[1]] + n_arb.pairs_tune[arb[1] + arb[2]] + n_arb.pairs_tune[arb[2] + arb[3]]) / 3
-				# profit_tunel_max = max(n_arb.pairs_tune[arb[0] + arb[1]], n_arb.pairs_tune[arb[1] + arb[2]], n_arb.pairs_tune[arb[2] + arb[3]])
-				# profit_tunel_min = min(n_arb.pairs_tune[arb[0] + arb[1]], n_arb.pairs_tune[arb[1] + arb[2]], n_arb.pairs_tune[arb[2] + arb[3]])
-				
-				# print(traded_triangle_count, arb, n_arb.pairs_tune[arb[0] + arb[1]], n_arb.pairs_tune[arb[1] + arb[2]], n_arb.pairs_tune[arb[2] + arb[3]])
-				# traded_triangle_count += 1
-				# print(traded_triangle_count, "Start trade triangle:                           ", arb)
-				# n_arb.trade_triangle(arb)
-				traded_triangle_count += 1
-				# n_arb.print_estimated_amount()
-				# winsound.Beep(800, 1000)
-				# print("Time:", time.time() - start2)
-				break
-		# n_arb.refresh_estimated_amount()
-		# n_arb.reduce_BNB(1)  # %
+			save_sum = sum(n_arb.current_price[orig_pair])
+			convert_array.append(n_arb.convert_multiplier[invert_pair])
+			print(" ")
+			print("LONG", 1 / convert_array[-1])
 		
-		# print("Triangle finishd.")
-		# print(" ")
-		# sys.exit(0)
-		# arb_profit = 1
-		# arb_profit_save = 1
-		# for i in range(len(arb) - 1):
-		#     transactions_count += 1
-		#     arb_profit *= n_arb.df_fee.at[arb[i], arb[i + 1]]
-		#     arb_profit_save *= df_fee_save.at[arb[i], arb[i + 1]]
-		# print(n_arb.df_fee.at["USDT", "BTC"])
-		# print(n_arb.df_fee.at["BTC", "USDT"])
-		# profit_arr.append(arb_profit)
-		# profit_arr_save.append(arb_profit_save)
-		# print(arb_profit, arb_profit_save, arb_profit - arb_profit_save)
-		
-		# i_triangle = ""
-		# for s in range(len(arb) - 1):
-		#     i_triangle += arb[s] + "_"
-		#     n_arb.freq_selected_symbols[arb[s]] += 1
-		
-		# i_triangle = i_triangle[:-1]
-		# if i_triangle in n_arb.freq_triangles.keys():
-		#     n_arb.freq_triangles[i_triangle] += 1
-		# else:
-		#     n_arb.freq_triangles[i_triangle] = 1
-		
-		# if i_start_symbol in n_arb.freq_start_symbol.keys():
-		#     n_arb.freq_start_symbol[i_start_symbol] += 1
-		# else:
-		#     n_arb.freq_start_symbol[i_start_symbol] = 1
-		
-		# print(arb)
-		# print("transaction count:", transactions_count,
-		#       "arb count:", all_arb_count,
-		#       "avg_profit:", avg_profit)
-		
-		# if int(all_arb_count / 10) == all_arb_count / 10:
-		#     n_arb.riport.clear()
-		#     i_ssf = dict(sorted(n_arb.freq_selected_symbols.items(), key=lambda item: item[1]))
-		#     n_arb.riport.add("Selected symbols:", i_ssf)
-		#     n_arb.riport.add_section("Most frequent triangles:")
-		#     n_arb.riport.add("Triangles:", n_arb.freq_triangles)
-		#     n_arb.riport.add_section("Most frequent start symbols:")
-		#     n_arb.riport.add("Symbols:", n_arb.freq_start_symbol)
-		#     n_arb.riport.add_section("Profit and transactions:")
-		#     n_arb.riport.add("Transaction count:", transactions_count)
-		#     n_arb.riport.add("Profit array:", profit_arr)
-		#     n_arb.riport.add("Average profit", sum(profit_arr)/len(profit_arr))
-		#     n_arb.riport.add("Profit array save:", profit_arr_save)
-		#     n_arb.riport.add("Average profit save", sum(profit_arr_save) / len(profit_arr_save))
-		#     n_arb.riport.write()
-	
-	# circle_count += 1
-	# if circle_count % 800 == 0:
-	#     print("connect :)")
-	#     n_arb.refresh_estimated_amount()
-	#     n_arb.reduce_BNB(1)
-	#     # n_arb.b_client.stream_keepalive()
-	
-	# if circle_count > live_update_val:
-	#     circle_count = 0
-	# n_arb.riport.stamp_live()
+		elif position == "LONG" and ((n_arb.spread_mod ** 2) * convert_array[-1] * n_arb.convert_multiplier[orig_pair]) > 1:
+			# print(convert_array)
+			# print((n_arb.spread_mod ** 2), convert_array[-1], n_arb.convert_multiplier["BTCUSDT"])
+			position = "SHORT"
+			convert_array.append(n_arb.convert_multiplier[orig_pair])
+			print(" ")
+			print("SHORT", convert_array[-1])
+			print("Profit:", reduce(lambda x, y: x * y, convert_array) * n_arb.official_fee_mod ** (len(convert_array)-1))
+# 	print("Number of pairs:", len(n_arb.selected_pairs))
+# 	print("Profit fee:", n_arb.official_fee)
+# 	print("Spread:", n_arb.spread)
+# 	print("Start symbol:", n_arb.arb_symbols)
+# 	print("arb_chk_delay:", n_arb.arb_check_delay)
+# 	print("Start n_arb_trader_server ....................................")
+# 	n_arb.print_estimated_amount()
+# 	# print(n_arb.commission)
+# 	# sys.exit(0)
+# 	start2 = time.time()
+# 	# for es in n_arb.exchange_info["symbols"]:
+# 	#     if es["symbol"] == "NULSBNB" or es["symbol"] == "BNBUSDT":
+# 	#         print(es)
+#
+# 	# n_arb.riport.create("A1_symbol_frequency",
+# 	#                     "Arbitrazsban erintett symbol-ok gyakorisaga, leggyakoribb tirangles, leggyakoribb kezdo symbol-ok")
+#
+# 	# sys.exit(0)
+# 	# all_arb_count = 0
+# 	# profit_arr = []
+# 	# profit_arr_save = []
+# 	# transactions_count = 0
+# 	# circle_count = 0
+# 	# live_update_val = int((1/n_arb.arb_check_delay) * 60 * live_update)
+# 	traded_triangle_count = 0
+# 	start_amount = 1000
+# 	start_amount_avg = 1000
+# 	while True:
+# 		# time.sleep(n_arb.arb_check_delay)
+# 		# n_arb.df_save.to_clipboard(excel=True)
+# 		for arb in n_arb.arb_find(n_arb.arb_symbols):  # ez egyben egy if is :)
+# 			# if arb[0] in n_arb.arb_symbols:
+# 			# print('\r ', arb, " " * 30, end="")
+# 			# triangel_profit = n_arb.official_fee_mod * n_arb.pairs_tune[arb[0] + arb[1]] * n_arb.pairs_tune[arb[1] + arb[2]] * n_arb.pairs_tune[arb[2] + arb[3]]
+# 			# print(triangel_profit)
+# 			# est_profit =
+# 			if arb[0] in n_arb.arb_symbols and len(arb) == 4 and n_arb.get_triangle_profit_by_spread(arb) > 1:
+# 				# print("-")
+# 				# print("-")
+# 				spr = int((((1 / n_arb.convert_multiplier[arb[3] + arb[2]]) / n_arb.convert_multiplier[
+# 					arb[2] + arb[3]]) - 1) * 100000)
+#
+# 				a = n_arb.convert_multiplier[arb[0] + arb[-2]]
+# 				# print("Est profit", n_arb.triangle_profit_result, "   Prices:   ",
+# 				# 	  n_arb.convert_multiplier[arb[0] + arb[1]], n_arb.convert_multiplier[arb[1] + arb[2]],
+# 				# 	  n_arb.convert_multiplier[arb[2] + arb[3]])
+# 				pa = []
+# 				for i in range(300):
+# 					time.sleep(.01)
+# 					pa.append(((1 - (n_arb.official_fee / 100)) ** 2) * a * n_arb.convert_multiplier[arb[-2] + arb[-1]])
+# 				# start_amount *= max(pa)
+# 				# start_amount_avg *= (max(pa) + min(pa) + 1) / 3
+# 				# print(" Profit min, max / spread:", min(pa), max(pa), "/", spr, "1000 USDT:", start_amount, start_amount_avg)
+# 				# if max(pa) > 1:
+# 				print(traded_triangle_count, arb)
+# 				print(" Profit min, max / spread:", min(pa), max(pa), "/", spr)
+#
+# 				# print("Est profit", n_arb.triangle_profit_result, "   Prices:   ", 1 / n_arb.convert_multiplier[arb[0] + arb[1]], 1 / n_arb.convert_multiplier[arb[1] + arb[2]], 1 / n_arb.convert_multiplier[arb[2] + arb[3]])
+#
+# 				# print(traded_triangle_count, arb)
+# 				# print(n_arb.pairs_tune[arb[0] + arb[1]], n_arb.pairs_tune[arb[1] + arb[2]], n_arb.pairs_tune[arb[2] + arb[3]])
+# 				# sys.exit(0)
+# 				# break
+# 				# profit_tunel_avg = (n_arb.pairs_tune[arb[0] + arb[1]] + n_arb.pairs_tune[arb[1] + arb[2]] + n_arb.pairs_tune[arb[2] + arb[3]]) / 3
+# 				# profit_tunel_max = max(n_arb.pairs_tune[arb[0] + arb[1]], n_arb.pairs_tune[arb[1] + arb[2]], n_arb.pairs_tune[arb[2] + arb[3]])
+# 				# profit_tunel_min = min(n_arb.pairs_tune[arb[0] + arb[1]], n_arb.pairs_tune[arb[1] + arb[2]], n_arb.pairs_tune[arb[2] + arb[3]])
+#
+# 				# print(traded_triangle_count, arb, n_arb.pairs_tune[arb[0] + arb[1]], n_arb.pairs_tune[arb[1] + arb[2]], n_arb.pairs_tune[arb[2] + arb[3]])
+# 				# traded_triangle_count += 1
+# 				# print(traded_triangle_count, "Start trade triangle:                           ", arb)
+# 				# n_arb.trade_triangle(arb)
+# 				traded_triangle_count += 1
+# 				# n_arb.print_estimated_amount()
+# 				# winsound.Beep(800, 1000)
+# 				# print("Time:", time.time() - start2)
+# 				break
+# # n_arb.refresh_estimated_amount()
+# # n_arb.reduce_BNB(1)  # %
+#
+# # print("Triangle finishd.")
+# # print(" ")
+# # sys.exit(0)
+# # arb_profit = 1
+# # arb_profit_save = 1
+# # for i in range(len(arb) - 1):
+# #     transactions_count += 1
+# #     arb_profit *= n_arb.df_fee.at[arb[i], arb[i + 1]]
+# #     arb_profit_save *= df_fee_save.at[arb[i], arb[i + 1]]
+# # print(n_arb.df_fee.at["USDT", "BTC"])
+# # print(n_arb.df_fee.at["BTC", "USDT"])
+# # profit_arr.append(arb_profit)
+# # profit_arr_save.append(arb_profit_save)
+# # print(arb_profit, arb_profit_save, arb_profit - arb_profit_save)
+#
+# # i_triangle = ""
+# # for s in range(len(arb) - 1):
+# #     i_triangle += arb[s] + "_"
+# #     n_arb.freq_selected_symbols[arb[s]] += 1
+#
+# # i_triangle = i_triangle[:-1]
+# # if i_triangle in n_arb.freq_triangles.keys():
+# #     n_arb.freq_triangles[i_triangle] += 1
+# # else:
+# #     n_arb.freq_triangles[i_triangle] = 1
+#
+# # if i_start_symbol in n_arb.freq_start_symbol.keys():
+# #     n_arb.freq_start_symbol[i_start_symbol] += 1
+# # else:
+# #     n_arb.freq_start_symbol[i_start_symbol] = 1
+#
+# # print(arb)
+# # print("transaction count:", transactions_count,
+# #       "arb count:", all_arb_count,
+# #       "avg_profit:", avg_profit)
+#
+# # if int(all_arb_count / 10) == all_arb_count / 10:
+# #     n_arb.riport.clear()
+# #     i_ssf = dict(sorted(n_arb.freq_selected_symbols.items(), key=lambda item: item[1]))
+# #     n_arb.riport.add("Selected symbols:", i_ssf)
+# #     n_arb.riport.add_section("Most frequent triangles:")
+# #     n_arb.riport.add("Triangles:", n_arb.freq_triangles)
+# #     n_arb.riport.add_section("Most frequent start symbols:")
+# #     n_arb.riport.add("Symbols:", n_arb.freq_start_symbol)
+# #     n_arb.riport.add_section("Profit and transactions:")
+# #     n_arb.riport.add("Transaction count:", transactions_count)
+# #     n_arb.riport.add("Profit array:", profit_arr)
+# #     n_arb.riport.add("Average profit", sum(profit_arr)/len(profit_arr))
+# #     n_arb.riport.add("Profit array save:", profit_arr_save)
+# #     n_arb.riport.add("Average profit save", sum(profit_arr_save) / len(profit_arr_save))
+# #     n_arb.riport.write()
+#
+# # circle_count += 1
+# # if circle_count % 800 == 0:
+# #     print("connect :)")
+# #     n_arb.refresh_estimated_amount()
+# #     n_arb.reduce_BNB(1)
+# #     # n_arb.b_client.stream_keepalive()
+#
+# # if circle_count > live_update_val:
+# #     circle_count = 0
+# # n_arb.riport.stamp_live()
