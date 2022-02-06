@@ -1,5 +1,6 @@
+import numpy as np
 
-a = ['ccc', 'ccc', 'ccc', 'ccc']
-b = ['BTC', 'NULS', 'USDT', 'BTC']
-a = b[0:50]
+b = [0.0] * 100
+a = [1] + b[0:20]
+x =
 print(a)
