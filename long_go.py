@@ -22,13 +22,13 @@ class n_arbitrage:
 	
 	def __init__(self):
 		self.official_fee = 0.075  # %   for profit calc
-		self.spread = 0.11  # %
-		self.prices_fallen = 0.33  # %
+		self.spread = 0.09  # %
+		self.prices_fallen = 0.35  # %
 		self.official_fee_mod = 1 - (self.official_fee / 100)
 		self.spread_mod = 1 - (self.spread / 100)
-		self.history_length = 800
+		self.history_length = 80
 		self.speed_delay = 0.085
-		self.stop_loss = -2  # %
+		self.stop_loss = -1.9  # %
 
 		# self.riport = n_riport()
 		# self.stop_tradeing_at_USDT = 60
@@ -69,9 +69,11 @@ class n_arbitrage:
 						'JST', 'KAVA', 'LINK', 'LRC', 'LTC', 'LUNA', 'MANA', 'MATIC', 'MBOX', 'NEAR',
 						'ONE', 'PEOPLE', 'PNT', 'ROSE', 'RUNE', 'SAND', 'SHIB', 'SOL', 'SUN', 'SUSHI',
 						'TFUEL', 'THETA', 'TLM', 'TRX', 'USDC', 'UST', 'VET', 'VOXEL', 'WIN', 'XRP', 'ZEC']
+		
+		## DAR OFF
 		self.quote_symbols = ["USDT"]
-		self.max_open_position = 9
-		self.stock_size = 800  # usd and eur
+		self.max_open_position = 18
+		self.stock_size = 450  # usd and eur
 
 		# BTC SETUP --------------------------------------------------------------------
 	# 	self.symbols = ['ADA', 'ATOM', 'AVAX', 'AXS', 'BNB', 'DOT', 'ENJ', 'ETH', 'FTM',
@@ -96,7 +98,7 @@ class n_arbitrage:
 		self.historical_price = {}
 		self.moving_avg_price = {}
 		self.moving_avg_window = 4
-		self.long_short_none = {}
+		# self.long_short_none = {}
 		self.symbol_traded_price = {}
 		self.defa_current_and_fallen()
 
@@ -138,7 +140,7 @@ class n_arbitrage:
 				self.historical_price[si2 + si1] = [0.0] * self.history_length
 				self.moving_avg_price[si1 + si2] = [0.0] * self.history_length
 				self.moving_avg_price[si2 + si1] = [0.0] * self.history_length
-				self.long_short_none[si1 + si2] = "NONE"
+				# self.long_short_none[si1 + si2] = "NONE"
 				self.symbol_traded_price[si1 + si2] = 0.0
 				self.max_fallen_symbols_list.append(si1 + si2)  # orig_pairs
 				self.max_fallen_array.append(0.0)  # orig_pairs
@@ -445,6 +447,13 @@ if __name__ == '__main__':
 					turn_count = 0
 				else:
 					print("Not enough free slot for:", max_symbol)
+					max_pos = n_arb.max_fallen_symbols_list.index(max_symbol)
+					n_arb.max_fallen_array[max_pos] = 0
+					n_arb.historical_price[max_symbol] = [0.0] * n_arb.history_length
+					n_arb.symbol_traded_price[max_symbol] = 0.0
+					# n_arb.long_short_none[l_symbol] = "NONE"
+					n_arb.print_long()
+					turn_count = 0
 
 		for symbol in n_arb.open_positions:
 			if ((n_arb.spread_mod ** 2) * n_arb.symbol_traded_price[symbol] * n_arb.convert_multiplier[symbol]) > 1\
@@ -461,8 +470,22 @@ if __name__ == '__main__':
 				n_arb.open_positions.remove(symbol)
 				n_arb.print_long()
 				turn_count = 0
-			elif
-
+				
+			# STOP LOSS
+			elif ((1 - ((1 / n_arb.symbol_traded_price[symbol]) / n_arb.convert_multiplier[symbol])) * 100) < n_arb.stop_loss:
+				i_profit = ((n_arb.official_fee_mod ** 2) * n_arb.symbol_traded_price[symbol] * n_arb.convert_multiplier[symbol])
+				print("STOP LOSS (over limit):", symbol, n_arb.convert_multiplier[symbol], "   Profit: ", i_profit)
+				max_pos = n_arb.max_fallen_symbols_list.index(symbol)
+				n_arb.max_fallen_array[max_pos] = 0
+				n_arb.historical_price[symbol] = [0.0] * n_arb.history_length
+				n_arb.symbol_traded_price[symbol] = 0.0
+				# n_arb.long_short_none[symbol] = "NONE"
+				sum_profit += ((stock_size * i_profit) - stock_size)
+				print("  Sum profit:", stock_size, sum_profit)
+				n_arb.open_positions.remove(symbol)
+				n_arb.print_long()
+				turn_count = 0
+		
 		if turn_count > (240 / n_arb.speed_delay):
 			n_arb.print_long()
 			turn_count = 0
