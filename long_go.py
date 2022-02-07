@@ -2,7 +2,7 @@ import asyncio
 import sys
 # import os
 import requests
-# import numpy as np
+import numpy as np
 from functools import reduce
 import time
 from threading import Thread
@@ -23,10 +23,10 @@ class n_arbitrage:
 	def __init__(self):
 		self.official_fee = 0.075  # %   for profit calc
 		self.spread = 0.11  # %
-		self.prices_fallen = 1.55  # %
+		self.prices_fallen = 0.33  # %
 		self.official_fee_mod = 1 - (self.official_fee / 100)
 		self.spread_mod = 1 - (self.spread / 100)
-		self.history_length = 3000
+		self.history_length = 800
 		self.speed_delay = 0.085
 		self.stop_loss = -2  # %
 
@@ -93,7 +93,9 @@ class n_arbitrage:
 
 		self.max_fallen_array = []
 		self.max_fallen_symbols_list = []
-		self.current_price = {}
+		self.historical_price = {}
+		self.moving_avg_price = {}
+		self.moving_avg_window = 4
 		self.long_short_none = {}
 		self.symbol_traded_price = {}
 		self.defa_current_and_fallen()
@@ -109,6 +111,9 @@ class n_arbitrage:
 		self.pair_info = self.defa_pair_info()
 		self.estimated_amount = self.defa_estimated_amount()
 		self.summa_amount_USDT = 0.0
+
+	def moving_average(self, x, w=7):
+		return np.convolve(x, np.ones(w), 'valid') / w
 
 	def print_long(self):
 		print_str = ""
@@ -129,8 +134,10 @@ class n_arbitrage:
 		# i_current_price = {}
 		for si1 in self.selected_symbols:
 			for si2 in self.quote_symbols:
-				self.current_price[si1 + si2] = [0.0] * self.history_length
-				self.current_price[si2 + si1] = [0.0] * self.history_length
+				self.historical_price[si1 + si2] = [0.0] * self.history_length
+				self.historical_price[si2 + si1] = [0.0] * self.history_length
+				self.moving_avg_price[si1 + si2] = [0.0] * self.history_length
+				self.moving_avg_price[si2 + si1] = [0.0] * self.history_length
 				self.long_short_none[si1 + si2] = "NONE"
 				self.symbol_traded_price[si1 + si2] = 0.0
 				self.max_fallen_symbols_list.append(si1 + si2)  # orig_pairs
@@ -322,11 +329,12 @@ class n_arbitrage:
 				res = await tscm.recv()
 				# print(res)
 				if res["stream"][-5:] == "trade":
-					self.current_price[res['data']['s']].append(float(res['data']['p']))
-					self.current_price[res['data']['s']] = self.current_price[res['data']['s']][1:self.history_length + 1]
+					self.historical_price[res['data']['s']].append(float(res['data']['p']))
+					self.historical_price[res['data']['s']] = self.historical_price[res['data']['s']][1:self.history_length + 1]
+					self.moving_avg_price[res['data']['s']] = self.moving_average(self.historical_price[res['data']['s']], self.moving_avg_window)
 					# print(self.current_price[res['data']['s']])
 					position = self.max_fallen_symbols_list.index(res['data']['s'])
-					self.max_fallen_array[position] = ((1 - (self.current_price[res['data']['s']][-1] / max(self.current_price[res['data']['s']]))) * 100)
+					self.max_fallen_array[position] = ((1 - (self.historical_price[res['data']['s']][-1] / max(self.historical_price[res['data']['s']]))) * 100)
 				else:
 					s1 = self.selected_pairs[res['data']['s']][0]
 					s2 = self.selected_pairs[res['data']['s']][1]
@@ -401,15 +409,15 @@ if __name__ == '__main__':
 		# 	  max_value,
 		# 	  max_invert_symbol,
 		# 	  end="")
-		if n_arb.long_short_none[max_symbol] == "NONE" \
+		if max_symbol not in n_arb.open_positions \
 				and max_value > n_arb.prices_fallen \
-				and n_arb.current_price[max_symbol][-1] > n_arb.current_price[max_symbol][-2] < n_arb.current_price[max_symbol][-3]:
+				and n_arb.moving_avg_price[max_symbol][-1] > n_arb.moving_avg_price[max_symbol][-2] < n_arb.moving_avg_price[max_symbol][-3]:
 			if len(n_arb.open_positions) < n_arb.max_open_position:
 				n_arb.symbol_traded_price[max_symbol] = n_arb.convert_multiplier[max_invert_symbol]
 				print("LONG:", max_symbol, 1 / n_arb.symbol_traded_price[max_symbol])
 				n_arb.max_fallen_array[max_pos] = 0
-				n_arb.current_price[max_symbol] = [0.0] * n_arb.history_length
-				n_arb.long_short_none[max_symbol] = "LONG"
+				n_arb.historical_price[max_symbol] = [0.0] * n_arb.history_length
+				# n_arb.long_short_none[max_symbol] = "LONG"
 				n_arb.open_positions.append(max_symbol)
 				n_arb.print_long()
 				turn_count = 0
@@ -427,9 +435,9 @@ if __name__ == '__main__':
 					print("STOP LOSS for free slot:", l_symbol, n_arb.convert_multiplier[l_symbol], "   Profit: ", i_profit)
 					max_pos = n_arb.max_fallen_symbols_list.index(l_symbol)
 					n_arb.max_fallen_array[max_pos] = 0
-					n_arb.current_price[l_symbol] = [0.0] * n_arb.history_length
+					n_arb.historical_price[l_symbol] = [0.0] * n_arb.history_length
 					n_arb.symbol_traded_price[l_symbol] = 0.0
-					n_arb.long_short_none[l_symbol] = "NONE"
+					# n_arb.long_short_none[l_symbol] = "NONE"
 					sum_profit += ((stock_size * i_profit) - stock_size)
 					print("  Sum profit:", stock_size, sum_profit)
 					n_arb.open_positions.remove(l_symbol)
@@ -438,22 +446,22 @@ if __name__ == '__main__':
 				else:
 					print("Not enough free slot for:", max_symbol)
 
-		for symbol in n_arb.long_short_none:
-			if n_arb.long_short_none[symbol] == "LONG" \
-					and ((n_arb.spread_mod ** 2) * n_arb.symbol_traded_price[symbol] * n_arb.convert_multiplier[symbol]) > 1\
-					and n_arb.current_price[symbol][-1] < n_arb.current_price[symbol][-2] > n_arb.current_price[symbol][-3]:
+		for symbol in n_arb.open_positions:
+			if ((n_arb.spread_mod ** 2) * n_arb.symbol_traded_price[symbol] * n_arb.convert_multiplier[symbol]) > 1\
+				and n_arb.historical_price[symbol][-1] < n_arb.historical_price[symbol][-2] > n_arb.historical_price[symbol][-3]:
 				i_profit = ((n_arb.official_fee_mod ** 2) * n_arb.symbol_traded_price[symbol] * n_arb.convert_multiplier[symbol])
 				print("STOP:", symbol, n_arb.convert_multiplier[symbol], "   Profit: ", i_profit)
 				max_pos = n_arb.max_fallen_symbols_list.index(symbol)
 				n_arb.max_fallen_array[max_pos] = 0
-				n_arb.current_price[symbol] = [0.0] * n_arb.history_length
+				n_arb.historical_price[symbol] = [0.0] * n_arb.history_length
 				n_arb.symbol_traded_price[symbol] = 0.0
-				n_arb.long_short_none[symbol] = "NONE"
+				# n_arb.long_short_none[symbol] = "NONE"
 				sum_profit += ((stock_size * i_profit) - stock_size)
 				print("  Sum profit:", stock_size, sum_profit)
 				n_arb.open_positions.remove(symbol)
 				n_arb.print_long()
 				turn_count = 0
+			elif
 
 		if turn_count > (240 / n_arb.speed_delay):
 			n_arb.print_long()
