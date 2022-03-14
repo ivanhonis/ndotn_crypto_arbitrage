@@ -61,15 +61,15 @@ class n_arbitrage:
 		# 				'USDC', 'BCHSV', 'PHB', 'COCOS', 'TOMO', 'XTZ', 'WRX', 'CHR', 'STMX', 'YFI',
 		# 				'SRM', 'KSM', 'SUSHI', 'BEL', 'NEAR', 'SLP', 'REEF', 'C98', 'MINA', 'VOXEL']
 
-		self.symbols = ['USDT', 'BUSD', 'BTC', 'ETH', '1INCH', 'AAVE', 'ACA', 'ADA', 'ADADOWN', 'ADAUP', 'ADX', 'ALGO', 'ALICE', 'ANKR',
+		self.symbols = ['USDT', 'BUSD', '1INCH', 'AAVE', 'ACA', 'ADA', 'ADADOWN', 'ADAUP', 'ADX', 'ALGO', 'ALICE', 'ANKR',
 						'ANT', 'ANY',
-						# 'AR', 'ATOM', 'AUD', 'AVAX', 'AXS', 'BAKE', 'BAND', 'BAT', 'BCH', 'BEAM', 'BICO', 'BIDR', 'BRL',
-						# 'BTCDOWN', 'BTTC', 'BURGER', 'C98', 'CAKE', 'CELO', 'CELR', 'CHESS', 'CHR', 'CHZ',
-						# 'COCOS', 'COMP', 'COS', 'COTI', 'CREAM', 'CRV', 'CTSI', 'CTXC', 'DAI', 'DAR', 'DASH', 'DENT',
-						# 'DOGE', 'DOT', 'DOTDOWN', 'DOTUP', 'DUSK', 'DYDX', 'EGLD', 'ENJ', 'ENS', 'EOS', 'ETC',
-						# 'ETHDOWN', 'ETHUP', 'EUR', 'FIDA', 'FIL', 'FLOW', 'FLUX', 'FTM', 'FTT', 'GALA', 'GBP', 'GLMR',
-						# 'GRT', 'GTC', 'GTO', 'GXS', 'HBAR', 'HIGH', 'HNT', 'HOT', 'ICP', 'ICX', 'IMX', 'IOST', 'IOTA',
-						# 'IOTX', 'JASMY', 'JOE', 'JST', 'KAVA', 'KEY', 'KLAY', 'KNC', 'KP3R', 'KSM', 'LINA', 'LINK',
+						'AR', 'ATOM', 'AUD', 'AVAX', 'AXS', 'BAKE', 'BAND', 'BAT', 'BCH', 'BEAM', 'BICO', 'BIDR', 'BRL',
+						'BTC', 'BTCDOWN', 'BTTC', 'BURGER', 'C98', 'CAKE', 'CELO', 'CELR', 'CHESS', 'CHR', 'CHZ',
+						'COCOS', 'COMP', 'COS', 'COTI', 'CREAM', 'CRV', 'CTSI', 'CTXC', 'DAI', 'DAR', 'DASH', 'DENT',
+						'DOGE', 'DOT', 'DOTDOWN', 'DOTUP', 'DUSK', 'DYDX', 'EGLD', 'ENJ', 'ENS', 'EOS', 'ETC', 'ETH',
+						'ETHDOWN', 'ETHUP', 'EUR', 'FIDA', 'FIL', 'FLOW', 'FLUX', 'FTM', 'FTT', 'GALA', 'GBP', 'GLMR',
+						'GRT', 'GTC', 'GTO', 'GXS', 'HBAR', 'HIGH', 'HNT', 'HOT', 'ICP', 'ICX', 'IMX', 'IOST', 'IOTA',
+						'IOTX', 'JASMY', 'JOE', 'JST', 'KAVA', 'KEY', 'KLAY', 'KNC', 'KP3R', 'KSM', 'LINA', 'LINK',
 						'LINKDOWN', 'LINKUP', 'LIT', 'LOKA', 'LRC', 'LTC', 'LUNA', 'MANA', 'MASK', 'MATIC', 'MBOX',
 						'MDT', 'MINA', 'MITH', 'MKR', 'NEAR', 'NEO', 'NKN', 'NULS', 'OCEAN', 'OGN', 'OMG', 'ONE', 'ONT',
 						'OOKI', 'PEOPLE', 'POND', 'PYR', 'QNT', 'QTUM', 'RAD', 'REEF', 'REN', 'REQ', 'RIF', 'RNDR',
@@ -198,8 +198,8 @@ class n_arbitrage:
 		
 		print("Summa in USDT:", summa_in_USDT, "Profit:", round(summa_in_USDT - self.summa_amount_USDT, 8))
 		self.summa_amount_USDT = summa_in_USDT
-		# if summa_in_USDT < self.stop_tradeing_at_USDT:
-		# 	sys.exit()
+		if summa_in_USDT < self.stop_tradeing_at_USDT:
+			sys.exit()
 	
 	def refresh_estimated_amount(self):
 		self.account = self.get_account()
@@ -607,7 +607,6 @@ class n_arbitrage:
 		async with ts as tscm:
 			while True:
 				res = await tscm.recv()
-				# print(res)
 				
 				s1 = self.selected_pairs[res['data']['s']][0]
 				s2 = self.selected_pairs[res['data']['s']][1]
@@ -707,7 +706,6 @@ if __name__ == '__main__':
 	# circle_count = 0
 	# live_update_val = int((1/n_arb.arb_check_delay) * 60 * live_update)
 	traded_triangle_count = 0
-	# print("itt")
 	while True:
 		# time.sleep(n_arb.arb_check_delay)
 		# n_arb.df_save.to_clipboard(excel=True)
@@ -727,7 +725,7 @@ if __name__ == '__main__':
 				# 	  n_arb.convert_multiplier[arb[0] + arb[1]], n_arb.convert_multiplier[arb[1] + arb[2]],
 				# 	  n_arb.convert_multiplier[arb[2] + arb[3]])
 				pa = []
-				for i in range(500):
+				for i in range(300):
 					time.sleep(.01)
 					pa.append((1-(n_arb.official_fee/100) ** 2) * a * n_arb.convert_multiplier[arb[-2] + arb[-1]])
 				print(" Profit min, max:", min(pa), max(pa))

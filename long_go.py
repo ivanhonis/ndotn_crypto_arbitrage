@@ -6,6 +6,8 @@ import numpy as np
 from functools import reduce
 import time
 from threading import Thread
+import pandas as pd
+from statistics import mean
 # import textwrap
 
 
@@ -22,13 +24,13 @@ class n_arbitrage:
 	
 	def __init__(self):
 		self.official_fee = 0.075  # %   for profit calc
-		self.spread = 0.09  # %
-		self.prices_fallen = 0.35  # %
+		self.spread = 0.08  # %
+		self.prices_fallen = 0.48  # %
 		self.official_fee_mod = 1 - (self.official_fee / 100)
 		self.spread_mod = 1 - (self.spread / 100)
-		self.history_length = 80
+		self.history_length = 45
 		self.speed_delay = 0.085
-		self.stop_loss = -1.9  # %
+		self.stop_loss = -99  # %
 
 		# self.riport = n_riport()
 		# self.stop_tradeing_at_USDT = 60
@@ -67,10 +69,10 @@ class n_arbitrage:
 						'CAKE', 'CFX', 'CHR', 'CHZ', 'COCOS', 'CRV', 'DAR', 'DOGE', 'DOT', 'DYDX', 'EGLD',
 						'ENJ', 'ENS', 'EOS', 'ETC', 'ETH', 'FIL', 'FTM', 'GALA', 'GLMR', 'HNT', 'ICP', 'IMX',
 						'JST', 'KAVA', 'LINK', 'LRC', 'LTC', 'LUNA', 'MANA', 'MATIC', 'MBOX', 'NEAR',
-						'ONE', 'PEOPLE', 'PNT', 'ROSE', 'RUNE', 'SAND', 'SHIB', 'SOL', 'SUN', 'SUSHI',
+						'ONE', 'ROSE', 'RUNE', 'SAND', 'SHIB', 'SOL', 'SUN', 'SUSHI',
 						'TFUEL', 'THETA', 'TLM', 'TRX', 'USDC', 'UST', 'VET', 'VOXEL', 'WIN', 'XRP', 'ZEC']
 		
-		## DAR OFF
+		## DAR PEOPLE PNT OFF
 		self.quote_symbols = ["USDT"]
 		self.max_open_position = 18
 		self.stock_size = 450  # usd and eur
@@ -331,12 +333,13 @@ class n_arbitrage:
 				res = await tscm.recv()
 				# print(res)
 				if res["stream"][-5:] == "trade":
-					self.historical_price[res['data']['s']].append(float(res['data']['p']))
-					self.historical_price[res['data']['s']] = self.historical_price[res['data']['s']][1:self.history_length + 1]
-					self.moving_avg_price[res['data']['s']] = self.moving_average(self.historical_price[res['data']['s']], self.moving_avg_window)
+					if self.historical_price[res['data']['s']][-1] != float(res['data']['p']):
+						self.historical_price[res['data']['s']].append(float(res['data']['p']))
+						self.historical_price[res['data']['s']] = self.historical_price[res['data']['s']][1:self.history_length + 1]
+						self.moving_avg_price[res['data']['s']] = self.moving_average(self.historical_price[res['data']['s']], self.moving_avg_window)
 					# print(self.current_price[res['data']['s']])
-					position = self.max_fallen_symbols_list.index(res['data']['s'])
-					self.max_fallen_array[position] = ((1 - (self.historical_price[res['data']['s']][-1] / max(self.historical_price[res['data']['s']]))) * 100)
+						position = self.max_fallen_symbols_list.index(res['data']['s'])
+						self.max_fallen_array[position] = ((1 - (self.historical_price[res['data']['s']][-1] / max(self.historical_price[res['data']['s']]))) * 100)
 				else:
 					s1 = self.selected_pairs[res['data']['s']][0]
 					s2 = self.selected_pairs[res['data']['s']][1]
@@ -357,13 +360,13 @@ class n_arbitrage:
 if __name__ == '__main__':
 	n_arb = n_arbitrage()
 	n_arb.start()
-	print("Start Long go -------------------")
+	print("Start LongGo -------------------")
 	# orig_pair = n_arb.orig_pair
 	# invert_pair = n_arb.invert_pair
 	# n_arb.print_estimated_amount()
-	for i in range(5):
-		print("\r", i, end="")
-		time.sleep(1)
+	# for i in range(5):
+	# 	print("\r", i, end="")
+	# 	time.sleep(1)
 	# while n_arb.current_price[orig_pair][-1] == 0:
 	# 	pass
 	
@@ -399,6 +402,7 @@ if __name__ == '__main__':
 	stock_size = n_arb.stock_size
 
 	turn_count = 0
+	mmax = 0.0
 	while True:
 		turn_count += 1
 		time.sleep(n_arb.speed_delay)
@@ -417,12 +421,15 @@ if __name__ == '__main__':
 			if len(n_arb.open_positions) < n_arb.max_open_position:
 				n_arb.symbol_traded_price[max_symbol] = n_arb.convert_multiplier[max_invert_symbol]
 				print("LONG:", max_symbol, 1 / n_arb.symbol_traded_price[max_symbol])
+				# df = pd.DataFrame(n_arb.historical_price)
+				# df.to_clipboard(excel=True)
 				n_arb.max_fallen_array[max_pos] = 0
 				n_arb.historical_price[max_symbol] = [0.0] * n_arb.history_length
 				# n_arb.long_short_none[max_symbol] = "LONG"
 				n_arb.open_positions.append(max_symbol)
 				n_arb.print_long()
 				turn_count = 0
+
 			else:
 				l_value = 0.0
 				l_symbol = ""
@@ -489,3 +496,14 @@ if __name__ == '__main__':
 		if turn_count > (240 / n_arb.speed_delay):
 			n_arb.print_long()
 			turn_count = 0
+			# max_value = max(n_arb.max_fallen_array)
+			# max_pos = n_arb.max_fallen_array.index(max_value)
+			# max_symbol = n_arb.max_fallen_symbols_list[max_pos]
+			# if mmax < max_value:
+			# 	mmax = max_value
+			# 	print(mmax, max_symbol)
+			# 	# print(n_arb.max_fallen_array)
+			# 	nz_max_fallen_array = n_arb.max_fallen_array.copy()
+			# 	nz_max_fallen_array = list(filter((0.0).__ne__, nz_max_fallen_array))
+			# 	print(mean(nz_max_fallen_array))
+
