@@ -7,7 +7,7 @@
       <excludeFolder url="file://$MODULE_DIR$/venv37" />
       <excludeFolder url="file://$MODULE_DIR$/venv372" />
     </content>
-    <orderEntry type="jdk" jdkName="Python 3.7 (ndotn_crypto_arbitrage)" jdkType="Python SDK" />
+    <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>

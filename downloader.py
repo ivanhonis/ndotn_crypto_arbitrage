@@ -10,14 +10,59 @@ import gc
 import datetime
 import json
 
-
-
 # Binanace
 from binance import AsyncClient, BinanceSocketManager
 # from binance.helpers import round_step_size
 
 
-class n_arbitrage:
+class time_gates():
+
+    def __init__(self):
+        self.time_dict = {}
+        self.time_steps = 1
+        self.get_time_dict()
+
+    def get_time_dict(self):
+        a = datetime.datetime.now()
+        x = int(a.minute)
+        z = 1
+        while (x + z) % 3 != 0:
+            z += 1
+
+        c = a + datetime.timedelta(minutes=z)
+        c = datetime.datetime(c.year, c.month, c.day, c.hour, c.minute)
+        # print(a, c)
+
+        time_dict = {}
+
+        time_dict[0] = c
+        time_dict[1] = time_dict[0] + datetime.timedelta(minutes=self.time_steps)
+        time_dict[2] = time_dict[1] + datetime.timedelta(minutes=self.time_steps)
+        self.time_dict = time_dict
+
+    def shift_time_dict(self):
+        self.time_dict[0] = self.time_dict[2]
+        self.time_dict[1] = self.time_dict[0] + datetime.timedelta(minutes=self.time_steps)
+        self.time_dict[2] = self.time_dict[1] + datetime.timedelta(minutes=self.time_steps)
+
+    def get_time_flag(self, pos):
+        if pos == 0:
+            if datetime.datetime.now() < self.time_dict[0]:
+                return 0
+            elif self.time_dict[0] < datetime.datetime.now() < self.time_dict[1]:
+                return 1
+            elif self.time_dict[1] < datetime.datetime.now():
+                return 2
+        if pos == 1:
+            if datetime.datetime.now() < self.time_dict[1]:
+                return 0
+            elif self.time_dict[1] < datetime.datetime.now() < self.time_dict[2]:
+                return 1
+            elif self.time_dict[2] < datetime.datetime.now():
+                return 2
+
+
+class n_book_saver:
 
     def __init__(self):
         self.api_key = "DAqss9T987L0ruIbVEW9rBEFDD2sKxEKBvpvDVUJfdjijzqPqBgD8semkNF2I5Ul"
@@ -25,13 +70,17 @@ class n_arbitrage:
         self.b_client = None
         self.account = self.get_account()
         self.exchange_info = self.get_exchange_info()
+        self.time_pos = 0
+        self.tg = time_gates()
+        self.time_flag = 0
+        self.chk_delay = 20  # sec
 
-        self.stram_chanel0 = True
-        self.stream0_dict = {}
-        self.stream0_pos = 0
-        self.stream1_dict = {}
-        self.stream1_pos = 0
-        self.all_pos = 0
+        # self.stram_chanel = True
+        self.stream_dict = {}
+        self.stream_pos = 0
+        # self.stream1_dict = {}
+        # self.stream1_pos = 0
+        # self.all_pos = 0
         self.last_save_name = ""
 
 
@@ -87,6 +136,9 @@ class n_arbitrage:
         self.socket_list = self.defa_socket_list()
         # self.pair_info = self.defa_pair_info()
 
+    def update_time_flag(self):
+        self.time_flag = self.tg.get_time_flag(self.time_pos)
+
     def upload_to_bucket(self, path_to_file, bucket_name="ndot_binance_stram"):
         storage_client = storage.Client.from_service_account_json(
             'tribal-radar-284116-9bfd84d521e2.json')
@@ -111,12 +163,9 @@ class n_arbitrage:
 
     def save_status(self):
         status = {"date_time": datetime.datetime.now().strftime("%Y %m %d %H:%M:%S"),
-                  "all_pos": self.all_pos,
                   "free_mem": psutil.virtual_memory().free / 1024 / 1024 / 1024,
                   "last_save_name": self.last_save_name,
-                  "stram_chanel0": self.stram_chanel0,
-                  "stream0_pos": self.stream0_pos,
-                  "stream1_pos": self.stream1_pos}
+                  "stream0_pos": self.stream_pos}
 
         with open('status.txt', 'w') as file:
             file.write(json.dumps(status))
@@ -200,79 +249,70 @@ class n_arbitrage:
         client = await AsyncClient.create()
         bm = BinanceSocketManager(client)
 
-        # start any sockets here, i.e a trade socket
-        # ts = bm.trade_socket('BNBBTC')
-
         ts = bm.multiplex_socket(self.socket_list)
-        # then start receiving messages
         async with ts as tscm:
-            while True:
+            while self.time_flag < 2:
                 res = await tscm.recv()
-                self.all_pos += 1
-                # print(res)
-                if self.stram_chanel0:
-                    self.stream0_dict[self.stream0_pos] = res
-                    self.stream0_pos += 1
+                # self.all_pos += 1
+                if self.time_flag == 1:
+                    res['datetime'] = datetime.datetime.now()
+                    print(res)
+                    self.stream_dict[self.stream_pos] = res
+                    self.stream_pos += 1
                     # print(self.stream0_pos)
-                else:
-                    self.stream1_dict[self.stream1_pos] = res
-                    self.stream1_pos += 1
+        await ts.__aexit__(None, None, None)
         await client.close_connection()
+        del client
 
     def start_asyc_websocket(self):
+        self.stream_pos = 0
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
         loop.run_until_complete(self.asyc_websocket())
+        print("itt")
+        loop.stop()
         loop.close()
 
 
 if __name__ == '__main__':
-    n_arb = n_arbitrage()
-    n_arb.start()
-    # print("Start downloader -------------------")
-    free_gb = psutil.virtual_memory().free/1024/1024/1024
-    dict_size_limit = .06 # GB
-    # dict_size_limit = .003 # GB for test
-    # print("Dict size limit (GB)", dict_size_limit)
+
+    n_arb = n_book_saver()
+
     dt_tag = datetime.datetime.now().strftime("%Y%m%d_%H%M")
-    sfile_name_prefix = "nDot_binance_" + dt_tag + "_"
+    sfile_name_prefix = "nDot_binance_" + dt_tag + "_" + str(n_arb.time_pos) + "_"
     sfile_sufix = 0
 
     n_arb.save_status()
+    last_time_flag = n_arb.time_flag
 
+    status_chk = 1
+    status_ping = status_chk * 60 / n_arb.chk_delay
 
     while True:
-        time.sleep(30)
-        n_arb.save_status()
-        # print('0', n_arb.stream0_pos, sys.getsizeof(n_arb.stream0_dict)/1024/1024/1024, '1', n_arb.stream1_pos, sys.getsizeof(n_arb.stream1_dict)/1024/1024/1024)
-        if n_arb.stram_chanel0:
-            if sys.getsizeof(n_arb.stream0_dict)/1024/1024/1024 > dict_size_limit:
-                n_arb.stram_chanel0 = False
-                n_arb.stream0_pos = 0
-                fname = sfile_name_prefix + str(sfile_sufix)
-                sfile_sufix += 1
-                n_arb.save_dict(n_arb.stream0_dict, fname)
-                n_arb.stream0_dict = {}
-                n_arb.upload_to_bucket(fname)
-                n_arb.del_file(fname)
-                gc.collect()
-                # free_gb = psutil.virtual_memory().free / 1024 / 1024 / 1024
-                # print("Free mem (GB)", free_gb)
-                n_arb.save_status()
+        n_arb.update_time_flag()
+        print(n_arb.time_flag, datetime.datetime.now())
+        if n_arb.time_flag == 1 and last_time_flag == 0:
+            last_time_flag = n_arb.time_flag
+            n_arb.start()
+        if n_arb.time_flag == 2:
+            fname = sfile_name_prefix + str(sfile_sufix)
+            sfile_sufix += 1
+            n_arb.save_dict(n_arb.stream_dict, fname)
+            n_arb.stream_dict = {}
+            n_arb.upload_to_bucket(fname)
+            n_arb.del_file(fname)
+            gc.collect()
+            n_arb.tg.shift_time_dict()
+            n_arb.update_time_flag()
+            last_time_flag = n_arb.time_flag
 
+        time.sleep(n_arb.chk_delay)
+
+        if status_ping <= 0:
+            n_arb.save_status()
+            status_ping = status_chk * 60 / n_arb.chk_delay
         else:
-            if sys.getsizeof(n_arb.stream1_dict)/1024/1024/1024 > dict_size_limit:
-                n_arb.stram_chanel0 = True
-                n_arb.stream1_pos = 0
-                fname = sfile_name_prefix + str(sfile_sufix)
-                sfile_sufix += 1
-                n_arb.save_dict(n_arb.stream1_dict, fname)
-                n_arb.stream1_dict = {}
-                n_arb.upload_to_bucket(fname)
-                n_arb.del_file(fname)
-                gc.collect()
-                # free_gb = psutil.virtual_memory().free / 1024 / 1024 / 1024
-                # print("Free mem (GB)", free_gb)
-                n_arb.save_status()
+            status_ping -= 1
+
 
