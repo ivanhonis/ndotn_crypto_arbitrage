@@ -1,0 +1,12 @@
+{
+  "type": "service_account",
+  "project_id": "tribal-radar-284116",
+  "private_key_id": "9bfd84d521e216d8af6201548dc316b6718441a3",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQChxI3eLgqfKCUK\nncyDgT/gabR98tyPqX9d83wVKIQujUSLEZ6VYG6b7iLSiPKsSYUiYnh7P//1SPDU\n9S4oyZJyrjROl9pay4TGfTX/lfgxDawgjES/WkRJfaQQD1PwiN2wkq/TVXdt19Gb\nEyki+LP7R20LxyL2/8pCgsR5vsDDI7GX9tGXhe+7eSADeWH9lmRB2LeHiTZNKygm\n+GZus2Q6a4IoXXtSaHflEXE7bDRfp9eMi+UZxfV9QGlCJRFjD32sh3aLfuwJWx4+\n0fhAGudsL4ePvpOZroRzn4+BBIK8kd0kaB7wloxK8ra9bMABbMWdCxMOLlzzoaYp\n5nNAeX/XAgMBAAECggEASTHr9TOE99XMyNx0nK4fTnXVxsVcWh6Z9FNG+jXedUfT\nU0+SH0nGUoSyOevgTedoN5IxrKbdNEmgOuODUs4+FujO3x7jnICI39zo0XA0oFFs\n6D8/nguEaXJRiTi+RNBQ6uO8bdW2l7t26oGFc/7vRQvhAdrFbdh4Vpbfuqx+gOyN\nzn3noO8kRZ2Mgy3jpcc21X2PQ2Nco8+qTPwG/rPDpLxe20b2dU726ZqnKa7uqb7d\n4O6HqYtBKbQ2Ub20nN8Br8oSZ/ckI//H6osIHmb3QuWgHwa+QPE+1aKGo1X7NZRy\nyRVihJAGevNTTBL6BxFVdUa0Mv05Fu7ucVoXNXLtrQKBgQDUFSaa/TPriLP40/CC\n8E1uOHqHTe8KsZb6G7EBniTJMBOFHbglPL9vuYTP0j6gKU9AdELOQa8cF9t+/tLf\n5uU7igSFiGtJWuluojIBCdv3MVu5EnADIy9D+f1axn8mDemUeAlb1s1Ts7UMkNYN\nH1uyFO91oX82BlhRA5bhcoL9VQKBgQDDRCGb4f1VRN7wWdZhWVfkFjOtVMuU0kv3\nwP0bTEm2AFwGCk5wNc5b+qfQTF+BU3KikeZmV0JQlqw1/PYnQi4hOAFrDpsQwX91\n8uvV9lj+7tyjVxgJG6s3skSBPpV73ly5bMgxOobGxd6gL8WbBEJSwlc2n/lJo5cc\n9Gg/ICKoewKBgAY+4TYrQr4q9nHbe/e/L+iRDTqy1tlPxYx0CFBt4dNy8QA4kdW2\n5kRaCEk+fc2lqcnSIq2ETa3cHgCtbHRfjlykgeGU1OQCI2G4sRRKwAmVkIfwvQ+6\nl4e+8vEba18phblzl4L23nEal7hZA5S7Wa3y4+Jo8SAcK7mnC2h0QNtJAoGBAK+K\nv4ApERsoGBgRW4YW0MnPH9QSaBa5W+w2RhTVZ2rENfaEK3H7HTJZS6YaEr3r7CG0\ncmHMzmQuoFDEwfIXL+tTMwswjTzqB5FcuqGWnvlIeXgqYwRFKI6gp69dOPurssZL\nwklnaSSnW/W8HLS4hntqFQeZl32ZIM+59UHSvPWjAoGAKf9mbqgXTArTUoMwaMA5\nWl1NKi9kyYXk1EWNmI4dnGNcw+WIxwe2iP1e+O2AMFhOsF7fvd9e8B1FLyKxD6VF\n8ckAsmNI+hLR2kCMSBG40o+Mfcgv9M9TZABMgxKUUSCigGl2c3CiSrhVrlJPI3HZ\nC/ADtf0iAR0ymdu+cm2IZrM=\n-----END PRIVATE KEY-----\n",
+  "client_email": "ndot-binance-stream@tribal-radar-284116.iam.gserviceaccount.com",
+  "client_id": "104614384332485735680",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/ndot-binance-stream%40tribal-radar-284116.iam.gserviceaccount.com"
+}
