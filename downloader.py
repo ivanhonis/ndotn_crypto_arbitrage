@@ -26,7 +26,7 @@ class time_gates():
         a = datetime.datetime.now()
         x = int(a.minute)
         z = 1
-        while (x + z) % 3 != 0:
+        while (x + z) % 2 != 0:
             z += 1
 
         c = a + datetime.timedelta(minutes=z)
@@ -246,6 +246,10 @@ class n_book_saver:
         self.socket_thread.start()
 
     async def asyc_websocket(self):
+        # while self.time_flag < 2:
+        #     await asyncio.sleep(1)
+        #     print("Sok sok adat")
+
         client = await AsyncClient.create()
         bm = BinanceSocketManager(client)
 
@@ -262,7 +266,11 @@ class n_book_saver:
                     # print(self.stream0_pos)
         await ts.__aexit__(None, None, None)
         await client.close_connection()
+        # await client.stream_close()
         del client
+        del bm
+        await asyncio.sleep(5)
+
 
     def start_asyc_websocket(self):
         self.stream_pos = 0
@@ -270,9 +278,13 @@ class n_book_saver:
         asyncio.set_event_loop(loop)
 
         loop.run_until_complete(self.asyc_websocket())
-        print("itt")
+        # print(asyncio.Task.all_tasks())
+        # for task in asyncio.Task.all_tasks(loop):
+        #     task.cancel()
+        print("itt2")
         loop.stop()
         loop.close()
+        print("itt3")
 
 
 if __name__ == '__main__':
