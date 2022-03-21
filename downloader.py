@@ -4,15 +4,18 @@ import psutil
 import pickle
 import time
 import os
-from threading import Thread
+import multiprocessing, ctypes
 from google.cloud import storage
 import gc
 import datetime
 import json
 
+
+
 # Binanace
 from binance import AsyncClient, BinanceSocketManager
-# from binance.helpers import round_step_size
+
+run_stream = multiprocessing.Value(ctypes.c_int, 0)  # (type, init value)
 
 
 class time_gates():
@@ -21,6 +24,7 @@ class time_gates():
         self.time_dict = {}
         self.time_steps = 1
         self.get_time_dict()
+        self.overlap = 10  # sec
 
     def get_time_dict(self):
         a = datetime.datetime.now()
@@ -31,7 +35,7 @@ class time_gates():
 
         c = a + datetime.timedelta(minutes=z)
         c = datetime.datetime(c.year, c.month, c.day, c.hour, c.minute)
-        # print(a, c)
+        print(a, c)
 
         time_dict = {}
 
@@ -49,16 +53,16 @@ class time_gates():
         if pos == 0:
             if datetime.datetime.now() < self.time_dict[0]:
                 return 0
-            elif self.time_dict[0] < datetime.datetime.now() < self.time_dict[1]:
+            elif self.time_dict[0] < datetime.datetime.now() < self.time_dict[1] + datetime.timedelta(seconds=self.overlap):
                 return 1
-            elif self.time_dict[1] < datetime.datetime.now():
+            elif self.time_dict[1] + datetime.timedelta(seconds=self.overlap) < datetime.datetime.now():
                 return 2
         if pos == 1:
             if datetime.datetime.now() < self.time_dict[1]:
                 return 0
-            elif self.time_dict[1] < datetime.datetime.now() < self.time_dict[2]:
+            elif self.time_dict[1] < datetime.datetime.now() < self.time_dict[2] + datetime.timedelta(seconds=self.overlap):
                 return 1
-            elif self.time_dict[2] < datetime.datetime.now():
+            elif self.time_dict[2] + datetime.timedelta(seconds=self.overlap) < datetime.datetime.now():
                 return 2
 
 
@@ -73,15 +77,16 @@ class n_book_saver:
         self.time_pos = 0
         self.tg = time_gates()
         self.time_flag = 0
-        self.chk_delay = 20  # sec
+        self.chk_delay = 4  # sec
+        self.stream_dict = {}
 
         # self.stram_chanel = True
-        self.stream_dict = {}
         self.stream_pos = 0
         # self.stream1_dict = {}
         # self.stream1_pos = 0
         # self.all_pos = 0
         self.last_save_name = ""
+        self.proc = None
 
 
         # self.symbols = ['AGLD', 'STPT', 'MXN', 'UGX', 'RENBTC', 'GLM', 'RAY', 'NEAR', 'AUDIO', 'HNT', 'ADADOWN', 'CDT', 'SPARTA', 'SUSD', 'FARM', 'XNO', 'AION', 'NPXS', 'DGB', 'ZRX', 'BCD', 'EASY', 'SANTOS', 'WING', 'WNXM', 'BCH', 'JST', 'ADAUP', 'HOT', 'AR', 'IRIS', 'RAMP', 'BCX', 'SEK', 'TRIG', 'RCN', 'COVER', 'FLM', 'GNO', 'VITE', 'GNT', 'BKRW', 'CFX', 'XPR', 'SFP', 'DIA', 'RDN', 'ACA', 'ARDR', 'LOOMOLD', 'NEBL', 'ACH', 'SLPOLD', 'BEL', 'JUV', 'ACM', 'MINA', 'GRTDOWN', 'VTHO', 'PYROLD', 'SGB', 'SALT', 'STORM', 'REN', 'REP', 'ADA', 'ELF', 'REQ', 'STORJ', 'CHF', 'ADD', 'BZRX', 'SGT', 'DF', 'RARE', 'EOSDOWN', 'PAXG', 'YOYO', 'PAX', 'CHR', 'VND', 'BCHDOWN', 'WAVES', 'CHZ', 'ADX', 'XRP', 'WPR', 'JASMY', 'AED', 'FIDA', 'SAND', 'DKK', 'OCEAN', 'FOR', 'UMA', 'DREPOLD', 'SCRT', 'TUSD', 'EZ', 'TKO', 'WABI', 'RGT', 'IDRT', 'ENG', 'ENJ', 'UNIDOWN', 'YFII', 'KZT', 'OAX', 'GRT', 'GRS', 'UND', 'HARD', 'TFUEL', 'ENS', 'LEND', 'DLT', 'TROY', 'XLMUP', 'UNI', 'BTCDOWN', 'TLM', 'HUF', 'SBTC', 'CKB', 'WRX', 'XTZ', 'LUNA', 'ETHDOWN', 'AGI', 'BCHA', 'EON', 'EOP', 'EOS', 'GO', 'NCASH', 'RIF', 'NSBT', 'SKL', 'XDATA', 'GTC', 'PEN', 'BLINK', 'SOLO', 'SXPDOWN', 'HC', 'SKY', 'BURGER', 'NAS', 'NAV', 'GTO', 'WTC', 'XVG', 'EPS', 'DNT', 'CLV', 'FLOW', 'XTZDOWN', 'XVS', 'STEEM', 'BVND', 'SLP', 'VRT', 'NBS', 'DON', 'LAZIO', 'DOT', 'IQ', 'GRTUP', '1INCH', 'KNCL', 'CHESS', 'MITH', 'ERD', 'DEGO', 'CND', 'GYEN', 'UNFI', 'FTM', 'POWR', 'ERN', 'GVT', 'WINGS', 'FTT', 'VOXEL', 'PHA', 'RLC', 'PHB', 'TRXDOWN', 'ATOM', 'XRPUP', 'QUICK', 'BLZ', 'SNM', 'BOBA', 'MBL', 'MTLX', 'SNT', 'PHP', 'SNX', 'LTCDOWN', 'FUN', 'SNMOLD', 'COP', 'COS', 'API3', 'USD', 'QKC', 'SUSHIUP', 'ROSE', 'GLMR', 'XYM', 'PURSE', 'SOL', 'TRXUP', 'CITY', 'ETC', 'BNC', 'CELR', 'UST', 'OGN', 'ETH', 'NEO', 'TOMO', 'CELO', 'KLAY', 'AUCTION', 'BADGER', 'HIGH', 'GXS', 'TRB', 'BNT', 'QLC', 'LBA', 'MDA', 'BNX', 'UTK', 'WSOL', 'HEGIC', 'MA', 'AMB', 'MC', 'TRU', 'FUEL', 'DREP', 'TRY', 'TRX', 'MDT', 'NFT', 'MDX', 'XRPDOWN', 'AERGO', 'EUR', 'AMP', 'BOT', 'NULS', 'AUTO', 'NGN', 'ANC', 'BDOT', 'EGLD', 'ANTOLD', 'SPELL', 'PUNDIX', 'FXS', 'PLA', 'HNST', 'EVX', 'CRV', 'BAKE', 'ANT', 'NU', 'FLUX', 'ANY', 'LINKUP', 'SRM', 'QISWAP', 'TORN', 'PLN', 'QNT', 'ALICE', 'OG', 'MFT', 'OM', 'BTTOLD', 'BETH', 'BQX', 'WETH', 'PHBV1', 'BETA', 'BRD', 'SSV', 'BUSD', 'CTK', 'ARPA', 'DOTDOWN', 'BRL', 'ALCX', 'CTR', 'MATIC', 'IOTX', 'SHIB', 'TVK', 'FRONT', 'ZAR', 'DOCK', 'STX', 'PNT', 'QI', 'DENT', 'MBOX', 'SUB', 'POA', 'IOST', 'CAKE', 'ETHUP', 'POE', 'OMG', 'BAND', 'SUN', 'ASTR', 'SUNOLD', 'BTC', 'TWT', 'NKN', 'RSR', 'IOTA', 'CVC', 'REEF', 'BTG', 'MIR', 'KES', 'ARK', 'LOKA', 'CVP', 'ARN', 'KEY', 'BTS', 'SPARTAOLD', 'ARS', 'CVX', 'ONE', 'LINKDOWN', 'ONG', 'ANKR', 'SUSHI', 'ALGO', 'SC', 'WBTC', 'ONT', 'PPT', 'ONX', 'BTTC', 'RUB', 'PIVX', 'ASR', 'FIRO', 'AXSOLD', 'AST', 'MANA', 'DOTUP', 'ATA', 'MEETONE', 'QSP', 'ATD', 'NMR', 'MKR', 'DODO', 'LIT', 'ICP', 'ZEC', 'ATM', 'APPC', 'JEX', 'ICX', 'LOOM', 'ZEN', 'KP3R', 'DOGE', 'DUSK', 'ALPHA', 'BOLT', 'SXP', 'HBAR', 'RVN', 'MLN', 'AUD', 'LTOOLD', 'IDR', 'CTSI', 'KAVA', 'C98', 'PSG', 'HCC', 'VIDT', 'NOK', 'AVA', 'SYS', 'COCOS', 'STRAX', 'EOSUP', 'CZK', 'GAS', 'COVEROLD', 'AAVEDOWN', 'THETA', 'BCHUP', 'WAN', 'ORN', 'PERL', 'XLMDOWN', 'MASK', 'AAVE', 'GBP', 'PERP', '1INCHUP', 'SXPUP', 'YFIDOWN', 'BOND', 'YFI', 'PERLOLD', 'MOD', 'BICO', 'OST', 'XEC', 'YGG', 'PEOPLE', 'AXS', 'ZIL', 'VAI', 'XEM', 'CTXC', 'KEYFI', 'XTZUP', 'BIDR', 'BCHSV', 'AAVEUP', 'SUSHIDOWN', 'COMP', 'ETHBNT', 'OMOLD', 'OOKI', 'RUNE', 'FORTH', 'KMD', 'GHST', 'IDEX', 'DEXE', 'AVAX', 'UAH', 'KNC', 'PROS', 'PROM', 'BTCUP', 'CHAT', 'BGBP', 'LPT', 'HIVE', 'BIFI', 'PORTO', 'SNGLS', 'PYR', 'WAXP', 'DAI', 'YFIUP', 'DAR', 'FET', 'LRC', 'REPV1', 'ADXOLD', 'MTH', 'MTL', 'VET', 'ALPACA', 'USDT', 'USDS', 'OXT', 'USDP', 'DASH', 'NVT', 'SWRV', 'EDO', 'ILV', 'GHS', 'BTCST', 'HKD', 'JOE', 'LSK', 'KEEP', 'CAD', 'BEAM', 'CAN', 'DCR', 'CREAM', 'DATA', 'IMX', 'ENTRP', 'FILUP', 'UNIUP', 'LTC', 'USDC', 'WIN', 'LTCUP', 'INJ', 'TCT', 'PARA', 'LTO', 'VGX', 'TRIBE', 'NXS', 'EFI', 'DYDX', 'AGIX', 'INR', 'CBK', 'CBM', 'INS', 'POND', 'JPY', 'LINA', 'XLM', 'LINK', 'QTUM', 'FILDOWN', 'SUPER', 'UFT', 'POLS', 'KSM', 'LUN', 'FIL', 'POLY', 'STMX', 'RNDR', 'BAL', 'FIO', 'GALA', 'VIB', 'VIA', 'FIS', 'BAR', 'RAD', 'BAT', 'VRAB', 'AKRO', 'NZD', 'MOVR', 'XMR', '1INCHDOWN', 'COTI']
@@ -114,18 +119,13 @@ class n_book_saver:
                         'ONE', 'ROSE', 'RUNE', 'SAND', 'SHIB', 'SOL', 'SUN', 'SUSHI', 'TFUEL', 'THETA', 'TLM',
                         'TRX', 'USDC', 'UST', 'VET', 'VOXEL', 'WIN', 'XRP', 'ZEC']
 
-        ## DAR PEOPLE PNT OFF
         self.quote_symbols = ["USDT", "BTC"]
-        # self.max_open_position = 18
-        # self.stock_size = 450  # usd and eur
+
 
         # BTC SETUP --------------------------------------------------------------------
         # 	self.symbols = ['ADA', 'ATOM', 'AVAX', 'AXS', 'BNB', 'DOT', 'ENJ', 'ETH', 'FTM',
         # 					'GALA', 'LINK', 'LRC', 'LTC', 'LUNA', 'MANA', 'MATIC', 'NEAR',
         # 					'SAND', 'SOL', 'TFUEL', 'XRP']
-        # 	self.quote_symbols = ["BTC"]
-        # 	self.max_open_position = 10
-        # 	self.stock_size = .025  # usd
 
         # OFF BNB
 
@@ -138,6 +138,7 @@ class n_book_saver:
 
     def update_time_flag(self):
         self.time_flag = self.tg.get_time_flag(self.time_pos)
+        return self.time_flag
 
     def upload_to_bucket(self, path_to_file, bucket_name="ndot_binance_stram"):
         storage_client = storage.Client.from_service_account_json(
@@ -151,21 +152,25 @@ class n_book_saver:
         if os.path.isfile(f_name + ".pickle"):
             os.remove(f_name + ".pickle")
 
+    def get_file_size(self, f_name):
+        stats = os.stat(f_name + ".pickle")
+        return stats.st_size
+
     def get_free_mem(self):
         return psutil.virtual_memory().free / 1073741824  # return in GB
 
-    def save_dict(self, sdict, name):
-        self.last_save_name = name
-        pickle.dump(sdict, open(name + ".pickle", "wb"))
+    def save_dict(self, sdict, f_name):
+        self.last_save_name = f_name
+        pickle.dump(sdict, open(f_name + ".pickle", "wb"))
 
     def load_dict(self, name):
         return pickle.load(open(name + ".pickle", "rb"))
 
     def save_status(self):
         status = {"date_time": datetime.datetime.now().strftime("%Y %m %d %H:%M:%S"),
-                  "free_mem": psutil.virtual_memory().free / 1024 / 1024 / 1024,
+                  "free_mem (GB)": psutil.virtual_memory().free / 1024 / 1024 / 1024,
                   "last_save_name": self.last_save_name,
-                  "stream0_pos": self.stream_pos}
+                  "stream_pos": self.stream_pos}
 
         with open('status.txt', 'w') as file:
             file.write(json.dumps(status))
@@ -175,6 +180,7 @@ class n_book_saver:
 
     async def close_binance_client(self):
         await self.b_client.close_connection()
+        del self.b_client
 
     async def _get_account(self):
         await self.open_binance_client()
@@ -227,7 +233,6 @@ class n_book_saver:
         for sp in tuple(self.selected_pairs.keys()):
             i_socket_list.append(sp.lower() + '@depth20')
             # i_socket_list.append(sp.lower() + '@trade')
-
         return i_socket_list
 
     def defa_selected_pairs(self):
@@ -241,90 +246,115 @@ class n_book_saver:
                     i_selected_pairs[si1 + si2] = [si1, si2]
         return i_selected_pairs
 
-    def start(self):
-        self.socket_thread = Thread(target=self.start_asyc_websocket, daemon=True)
-        self.socket_thread.start()
+    # def start(self):
+        # print("Start thr1")
+        # self.socket_thread = Thread(target=self.start_asyc_websocket, daemon=True)
+        # print("Start thr2")
+        # self.socket_thread.start()
+
+    def n_start(self):
+        self.stream_dict["x"] = 12
+        print("cx len", len(tuple(self.stream_dict.keys())))
+        self.proc = multiprocessing.Process(target=self.start_asyc_websocket, args=(run_stream))
+        self.proc.start()
+        print("cx len", len(tuple(self.stream_dict.keys())))
+
+    def n_stop(self):
+        print("terminate")
+        print(n_bs.time_flag)
+        self.proc.terminate()
 
     async def asyc_websocket(self):
-        # while self.time_flag < 2:
-        #     await asyncio.sleep(1)
-        #     print("Sok sok adat")
+        global run_stream
+        print("asyc_websocket cx len", len(tuple(self.stream_dict.keys())))
 
         client = await AsyncClient.create()
         bm = BinanceSocketManager(client)
 
         ts = bm.multiplex_socket(self.socket_list)
         async with ts as tscm:
-            while self.time_flag < 2:
-                res = await tscm.recv()
-                # self.all_pos += 1
-                if self.time_flag == 1:
+            while True:
+                if run_stream:
+                    res = await tscm.recv()
+                    # self.all_pos += 1
                     res['datetime'] = datetime.datetime.now()
-                    print(res)
                     self.stream_dict[self.stream_pos] = res
                     self.stream_pos += 1
-                    # print(self.stream0_pos)
-        await ts.__aexit__(None, None, None)
-        await client.close_connection()
-        # await client.stream_close()
-        del client
-        del bm
-        await asyncio.sleep(5)
+                    print(run_stream)
+                        # print("in asyc_websocket cx len", len(tuple(self.stream_dict.keys())))
+                    # print(res)
+                else:
+                    print("False")
+                    await ts.__aexit__(None, None, None)
+                    await client.close_connection()
+                    del client
+                    del bm
+                    del ts
+                    return
 
-
-    def start_asyc_websocket(self):
+    def start_asyc_websocket(self, r):
+        print("start_asyc_websocket cx len", len(tuple(self.stream_dict.keys())))
         self.stream_pos = 0
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-
         loop.run_until_complete(self.asyc_websocket())
-        # print(asyncio.Task.all_tasks())
-        # for task in asyncio.Task.all_tasks(loop):
-        #     task.cancel()
-        print("itt2")
-        loop.stop()
+        print("c1", self.stream_dict.keys())
         loop.close()
-        print("itt3")
+        print("c2", self.stream_dict.keys())
+
 
 
 if __name__ == '__main__':
 
-    n_arb = n_book_saver()
+    n_bs = n_book_saver()
 
-    dt_tag = datetime.datetime.now().strftime("%Y%m%d_%H%M")
-    sfile_name_prefix = "nDot_binance_" + dt_tag + "_" + str(n_arb.time_pos) + "_"
+    dt_tag = datetime.datetime.now().strftime("%m%d_%H%M")
+    sfile_name_prefix = "nDotBNC_" + dt_tag + "_" + str(n_bs.time_pos) + "_"
     sfile_sufix = 0
 
-    n_arb.save_status()
-    last_time_flag = n_arb.time_flag
+    n_bs.save_status()
+    last_time_flag = n_bs.time_flag
 
     status_chk = 1
-    status_ping = status_chk * 60 / n_arb.chk_delay
+    status_ping = status_chk * 60 / n_bs.chk_delay
 
     while True:
-        n_arb.update_time_flag()
-        print(n_arb.time_flag, datetime.datetime.now())
-        if n_arb.time_flag == 1 and last_time_flag == 0:
-            last_time_flag = n_arb.time_flag
-            n_arb.start()
-        if n_arb.time_flag == 2:
+
+        t_flag = n_bs.update_time_flag()
+        print(t_flag)
+        if t_flag != 1:
+            print(n_bs.time_flag, datetime.datetime.now())
+
+        if t_flag == 1 and last_time_flag == 0:
+            last_time_flag = t_flag
+            n_bs.n_start()
+            print("c-1", len(n_bs.stream_dict.keys()))
+        if t_flag == 2:
+            run_stream = False
+            print("kint 1 cx len", len(tuple(n_bs.stream_dict.keys())))
+            sys.exit()
+            time.sleep(15)
+            n_bs.n_stop()
+            print("kint 2 cx len", len(tuple(n_bs.stream_dict.keys())))
             fname = sfile_name_prefix + str(sfile_sufix)
             sfile_sufix += 1
-            n_arb.save_dict(n_arb.stream_dict, fname)
-            n_arb.stream_dict = {}
-            n_arb.upload_to_bucket(fname)
-            n_arb.del_file(fname)
+            n_bs.save_dict(n_bs.stream_dict, fname)
+
+            n_bs.stream_dict = {}
+            n_bs.upload_to_bucket(fname)
+            print(n_bs.get_file_size(fname) / 1024 / 1024, "MB")
+            n_bs.del_file(fname)
             gc.collect()
-            n_arb.tg.shift_time_dict()
-            n_arb.update_time_flag()
-            last_time_flag = n_arb.time_flag
+            n_bs.tg.shift_time_dict()
+            n_bs.update_time_flag()
+            last_time_flag = n_bs.time_flag
 
-        time.sleep(n_arb.chk_delay)
+        time.sleep(n_bs.chk_delay)
 
-        if status_ping <= 0:
-            n_arb.save_status()
-            status_ping = status_chk * 60 / n_arb.chk_delay
-        else:
-            status_ping -= 1
+        # if status_ping <= 0:
+        #     n_bs.save_status()
+        #     status_ping = status_chk * 60 / n_bs.chk_delay
+        # else:
+        #     status_ping -= 1
 
 
