@@ -332,8 +332,8 @@ if __name__ == '__main__':
         if t_flag == 2:
             run_stream = False
             print("kint 1 cx len", len(tuple(n_bs.stream_dict.keys())))
-            sys.exit()
             time.sleep(15)
+            sys.exit()
             n_bs.n_stop()
             print("kint 2 cx len", len(tuple(n_bs.stream_dict.keys())))
             fname = sfile_name_prefix + str(sfile_sufix)
