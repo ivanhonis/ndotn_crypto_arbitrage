@@ -10,6 +10,7 @@ from google.cloud import storage
 import gc
 import datetime
 import json
+import socket
 
 # Binanace
 from binance import AsyncClient, BinanceSocketManager
@@ -19,7 +20,7 @@ class TimeGates:
 
     def __init__(self):
         self.time_dict = {}
-        self.time_steps = 60 * 5  # idő váltások másodpercben
+        self.time_steps = 60 * 20  # idő váltások másodpercben
         self.get_time_dict()
         self.overlap = 10  # sec átfedés az időkapuk között, ezért majd tisztítani kell az adatokat
 
@@ -100,24 +101,22 @@ class n_book_saver:
         # 				'SRM', 'KSM', 'SUSHI', 'BEL', 'NEAR', 'SLP', 'REEF', 'C98', 'MINA', 'VOXEL']
 
         # # USDT Setup -----------------------------------------------------------------
-        # 	self.symbols = ["ATOM", "BTC", "ETH", "NMR", "SAND", "SOL", "FTM", "XRP",
-        # 					"LUNA", "MANA", "NEAR", "AVAX", "TRX", "ROSE", "ONE", "ALGO", "DOT", "VET",
-        # 					"ATOM", "LRC", "ETC", "LINK", "SHIB", "BCH", "THETA", "OMG", "ICP", "EGLD",
-        # 					"FIL", "CRV", "SUSHI", "EOS", "DYDX", "ANT", "CHR", "ZEC", "DUSK", "CHZ",
-        # 					"ENJ"]
+        self.symbols = ["ATOM", "BTC", "ETH", "NMR", "SAND", "SOL", "FTM", "XRP",
+        					"LUNA", "MANA", "NEAR", "AVAX", "TRX", "ROSE", "ONE", "ALGO", "DOT", "VET",
+        					"ATOM", "LRC", "ETC", "LINK", "SHIB", "BCH", "THETA", "OMG"]
         # 	self.quote_symbols = ["USDT"]
         # 	self.max_open_position = 10
         # 	self.stock_size = 800  # usd
 
         # USDT Setup -----------------------------------------------------------------
-        self.symbols = ['API3', 'ACH', 'ADA', 'ALGO', 'ALICE', 'ANT', 'ATOM', 'AVAX', 'AXS', 'BCH', 'BNB', 'BTC',
-                        'CAKE', 'CFX', 'CHR', 'CHZ', 'COCOS', 'CRV', 'DAR', 'DOGE', 'DOT', 'DYDX', 'EGLD', 'INJ',
-                        'ENJ', 'ENS', 'EOS', 'ETC', 'ETH', 'FIL', 'FTM', 'GALA', 'GLMR', 'HNT', 'ICP', 'IMX',
-                        'JST', 'KAVA', 'LINK', 'LRC', 'LTC', 'LUNA', 'MANA', 'MATIC', 'MBOX', 'NEAR',
-                        'ONE', 'ROSE', 'RUNE', 'SAND', 'SHIB', 'SOL', 'SUN', 'SUSHI', 'TFUEL', 'THETA', 'TLM',
-                        'TRX', 'USDC', 'UST', 'VET', 'VOXEL', 'WIN', 'XRP', 'ZEC']
+        # self.symbols = ['API3', 'ACH', 'ADA', 'ALGO', 'ALICE', 'ANT', 'ATOM', 'AVAX', 'AXS', 'BCH', 'BNB', 'BTC',
+        #                 'CAKE', 'CFX', 'CHR', 'CHZ', 'COCOS', 'CRV', 'DAR', 'DOGE', 'DOT', 'DYDX', 'EGLD', 'INJ',
+        #                 'ENJ', 'ENS', 'EOS', 'ETC', 'ETH', 'FIL', 'FTM', 'GALA', 'GLMR', 'HNT', 'ICP', 'IMX',
+        #                 'JST', 'KAVA', 'LINK', 'LRC', 'LTC', 'LUNA', 'MANA', 'MATIC', 'MBOX', 'NEAR',
+        #                 'ONE', 'ROSE', 'RUNE', 'SAND', 'SHIB', 'SOL', 'SUN', 'SUSHI', 'TFUEL', 'THETA', 'TLM',
+        #                 'TRX', 'USDC', 'UST', 'VET', 'VOXEL', 'WIN', 'XRP', 'ZEC']
 
-        self.quote_symbols = ["USDT", "BTC"]
+        self.quote_symbols = ["USDT"]
 
 
         # BTC SETUP --------------------------------------------------------------------
@@ -169,6 +168,7 @@ class n_book_saver:
         return pickle.load(open(name + ".pickle", "rb"))
 
     def save_status(self, status="Ping"):
+        # print("Status write")
         act_memory_GB = psutil.virtual_memory().free / 1024 / 1024 / 1024
         self.min_memory_GB = min(self.min_memory_GB, act_memory_GB)
         status = {"status": status,
@@ -181,6 +181,10 @@ class n_book_saver:
 
         with open('status.txt', 'w') as outfile:
             json.dump(status, outfile, indent=2)
+
+    def save_last_result(self, i_str):
+        with open('last_result.txt', 'w') as outfile2:
+            json.dump(i_str, outfile2)
 
     async def open_binance_client(self):
         self.b_client = await AsyncClient.create(self.api_key, self.api_secret)
@@ -250,7 +254,10 @@ class n_book_saver:
     def n_stop(self):
         # print("terminate")
         # print(n_bs.time_flag)
+        self.proc.join()
+        time.sleep(6)
         self.proc.terminate()
+        # print("terminate end")
 
     async def asyc_websocket(self, global_stream_num, global_result_dict):
 
@@ -300,9 +307,7 @@ class n_book_saver:
 
 
 if __name__ == '__main__':
-
-    # os.chdir('C:\\Coder\\ndotn_crypto_arbitrage')
-
+    host_name = socket.gethostname()
 
     # processzek között megosztott változók
     global_stream_num = Value('d', 1.0)  # 1 megy a stream 0 leáll
@@ -310,6 +315,12 @@ if __name__ == '__main__':
     global_result_dict = manager.dict() ## ez pedig a result dict
 
     n_bs = n_book_saver()
+    if host_name == "A" or host_name == "Aurora_R9":
+        # print("A")
+        n_bs.time_pos = 0
+    else:
+        # print("B")
+        n_bs.time_pos = 1
 
     dt_tag = datetime.datetime.now().strftime("%m%d_%H%M")
     # sfile_name_prefix = "nDotBNC_" + dt_tag + "_" + str(n_bs.time_pos) + "_"
@@ -321,14 +332,18 @@ if __name__ == '__main__':
 
 
     # status txt hány percenként készüljön el
-    status_chk = 1 # perc
-    status_ping = status_chk * 60 / n_bs.chk_delay
+    status_ping = 60  ## másodpercenként
+    dt_now = datetime.datetime.now()
 
     # fname = "nDotBNC_0417_2018_0_0"
     # x = n_bs.load_dict(fname)
     # print("x len ", len(x))
     # print(x[0])
     # sys.exit(0)
+
+    fast_chk = .25
+    sleep_timer = fast_chk
+
 
     while True:
 
@@ -338,15 +353,21 @@ if __name__ == '__main__':
         #     print(t_flag, datetime.datetime.now())
 
         if t_flag == 1 and last_time_flag == 0:
+            sleep_timer = n_bs.chk_delay
+            # print("Start", str(datetime.datetime.now()))
             last_time_flag = t_flag
             global_stream_num.value = 1
             # print("start stream")
             global_result_dict = manager.dict()
             n_bs.n_start()
         if t_flag == 2:
+            sleep_timer = fast_chk
+            # print("Stop", str(datetime.datetime.now()))
             global_stream_num.value = 0
-            time.sleep(10)
-            n_bs.n_stop()  # nincs szükség leállításra mert 10 sec után leáll magától
+            n_bs.n_stop()
+            lkey = tuple(global_result_dict.keys())[-1]
+            lresult = str(global_result_dict[lkey])
+            n_bs.save_last_result(lresult)
 
             sdic = global_result_dict.copy()
             # print(sdic[0])
@@ -369,12 +390,8 @@ if __name__ == '__main__':
             n_bs.update_time_flag()
             last_time_flag = n_bs.time_flag
 
-        time.sleep(n_bs.chk_delay)
+        time.sleep(sleep_timer)
 
-        if status_ping <= 0:
+        if datetime.datetime.now() > dt_now + datetime.timedelta(seconds=status_ping):
+            dt_now = datetime.datetime.now()
             n_bs.save_status("Ping")
-            status_ping = status_chk * 60 / n_bs.chk_delay
-        else:
-            status_ping -= 1
-
-

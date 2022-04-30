@@ -1,0 +1,3 @@
+pip install psutil
+pip install google-cloud-storage
+pip install python-binance==1.0.15
