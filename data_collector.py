@@ -137,7 +137,7 @@ class n_book_saver:
         self.time_flag = self.tg.get_time_flag(self.time_pos)
         return self.time_flag
 
-    def upload_to_bucket(self, path_to_file, blob_name, bucket_name="ndot_binance_stram"):
+    def upload_to_bucket(self, path_to_file, blob_name, bucket_name="ndot2"):
         storage_client = storage.Client.from_service_account_json(
             'tribal-radar-284116-9bfd84d521e2.json')
         # print(path_to_file)
@@ -395,3 +395,6 @@ if __name__ == '__main__':
         if datetime.datetime.now() > dt_now + datetime.timedelta(seconds=status_ping):
             dt_now = datetime.datetime.now()
             n_bs.save_status("Ping")
+
+
+
