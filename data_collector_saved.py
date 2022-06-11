@@ -101,7 +101,9 @@ class n_book_saver:
         # 				'SRM', 'KSM', 'SUSHI', 'BEL', 'NEAR', 'SLP', 'REEF', 'C98', 'MINA', 'VOXEL']
 
         # # USDT Setup -----------------------------------------------------------------
-        self.symbols = ["LUNA", "BTC"]
+        self.symbols = ["ATOM", "BTC", "ETH", "NMR", "SAND", "SOL", "FTM", "XRP",
+        					"LUNA", "MANA", "NEAR", "AVAX", "TRX", "ROSE", "ONE", "ALGO", "DOT", "VET",
+        					"ATOM", "LRC", "ETC", "LINK", "SHIB", "BCH", "THETA", "OMG"]
         # 	self.quote_symbols = ["USDT"]
         # 	self.max_open_position = 10
         # 	self.stock_size = 800  # usd
@@ -270,7 +272,6 @@ class n_book_saver:
                 # print("glob_num.value", global_stream_num.value)
                 if global_stream_num.value == 1:
                     res = await tscm.recv()
-                    print(res)
                     # self.all_pos += 1
                     res['datetime'] = datetime.datetime.now()
                     global_result_dict[self.stream_pos] = res
@@ -390,7 +391,6 @@ if __name__ == '__main__':
             last_time_flag = n_bs.time_flag
 
         time.sleep(sleep_timer)
-        print(datetime.datetime.now())
 
         if datetime.datetime.now() > dt_now + datetime.timedelta(seconds=status_ping):
             dt_now = datetime.datetime.now()
