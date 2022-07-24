@@ -55,6 +55,7 @@ def get_last_ids(symbols):
     for sy in symbols:
         trades = client.get_historical_trades(symbol=sy)
         from_id[sy] = trades[-1]['id']
+        # print(sy, from_id[sy])
     return from_id
 
 
@@ -162,6 +163,7 @@ while True:
     for sy in symbols:
         if symbol_run[sy] == 1:
             trades = client.get_historical_trades(symbol=sy, limit=1000, fromId=last_read_id[sy] - 1000)
+            # print(trades)
             client.close_connection()
             collected_data[sy] += trades
             last_read_id[sy] -= 1000

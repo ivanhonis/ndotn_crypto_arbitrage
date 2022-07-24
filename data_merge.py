@@ -11,6 +11,8 @@ import gc
 # import datetime
 # import json
 import glob
+import sys
+
 import pandas as pd
 # import socket
 
@@ -334,13 +336,15 @@ for n in symbols:
 file_names = []
 dict_array = []
 
-data_path = "D:/Apa/Coder/Binance_orderbook_history/1_seria_2022_05_01"
-file_list = glob.glob(data_path + "/*")
-print(file_list)
-for fn in file_list:
-    file_names.append(fn.replace(data_path, "")[1:])
+for d_no in range(1, 500):
+    data_path = "D:/Apa/Coder/Binance_orderbook_history/2_series_2022_5_02/"+str(d_no)
+    file_list = glob.glob(data_path + "/*")
+    print(file_list)
+    for fn in file_list:
+        file_names.append(fn.replace(data_path, "")[1:])
+print(file_names)
 
-# print(file_names)
+sys.exit(0)
 
 for n_prefix in range(500):
     created_name = "nDotBNC_A_" + str(n_prefix) + ".pickle"
