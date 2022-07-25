@@ -166,7 +166,7 @@ while True:
             # print(trades)
             client.close_connection()
             collected_data[sy] += trades
-            last_saved_id[sy] += 1 + 1000
+            last_saved_id[sy] += 1000
             # print(sy, "-" * 80)
             # print_trades(collected_data[sy])
 
