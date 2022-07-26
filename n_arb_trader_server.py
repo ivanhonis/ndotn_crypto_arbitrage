@@ -31,12 +31,12 @@ class n_arbitrage:
 
     def __init__(self):
         self.arb_symbols = ['USDT']
-        self.official_fee = 0.1  # %   for profit triangle profit calc
-        self.spread = 0.9  # %
+        self.official_fee = 0.015  # %   for profit triangle profit calc
+        self.spread = 0.02  # %
         # self.gap = 0.07  # %
-        self.arb_check_delay = 0.00  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
+        self.arb_check_delay = 0.5  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
         # self.riport = n_riport()
-        self.stop_tradeing_at_USDT = 60
+        # self.stop_tradeing_at_USDT = 60
 
         self.socket_thread = None
         # self.stop_thread = None
@@ -67,14 +67,14 @@ class n_arbitrage:
 
         self.all_pairs = self.defa_all_pairs()
 
-        self.selected_symbols = self.symbols[:50]  ## kiválasztam amivel dolgozok
+        self.selected_symbols = self.symbols[:10]  ## kiválasztam amivel dolgozok
         self.commission = self.defa_commission()
         self.selected_pairs = self.defa_selected_pairs()  ##a kiválasztott szimbólumokhoz kapcsolódó párokat kiválasztom
         self.df = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
         self.df = self.df.astype(float)
 
-        self.df_save = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
-        self.df_save = self.df.astype(float)
+        # self.df_save = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
+        # self.df_save = self.df.astype(float)
 
         # self.df_fee = pd.DataFrame(columns=self.selected_symbols, index=self.selected_symbols)
         # self.df_fee = self.df.astype(float)
@@ -181,8 +181,8 @@ class n_arbitrage:
             
         print("Summa in USDT:", summa_in_USDT, "Profit:", round(summa_in_USDT - self.summa_amount_USDT, 8))
         self.summa_amount_USDT = summa_in_USDT
-        if summa_in_USDT < self.stop_tradeing_at_USDT:
-            sys.exit()
+        # if summa_in_USDT < self.stop_tradeing_at_USDT:
+        #     sys.exit()
         
     def refresh_estimated_amount(self):
         self.account = self.get_account()
@@ -375,10 +375,6 @@ class n_arbitrage:
               reduce(lambda x, y: x * y, self.triangle_profit) * n_arb.official_fee_mod)
         print(" Realised prices:", str(self.triangle_profit))
         # print()
-
-
-
-
 
 
     def arb_bellman_ford_negative_cycles(self, g, s):
@@ -709,9 +705,11 @@ if __name__ == '__main__':
     # live_update_val = int((1/n_arb.arb_check_delay) * 60 * live_update)
     traded_triangle_count = 0
     while True:
+        # print("why")
         # time.sleep(n_arb.arb_check_delay)
         # n_arb.df_save.to_clipboard(excel=True)
         for arb in n_arb.arb_find(n_arb.arb_symbols):  # ez egyben egy if is :)
+            print(arb)
             # triangel_profit = n_arb.official_fee_mod * n_arb.pairs_tune[arb[0] + arb[1]] * n_arb.pairs_tune[arb[1] + arb[2]] * n_arb.pairs_tune[arb[2] + arb[3]]
             # print(triangel_profit)
             # est_profit =
@@ -730,12 +728,18 @@ if __name__ == '__main__':
                 # print(traded_triangle_count, arb, n_arb.pairs_tune[arb[0] + arb[1]], n_arb.pairs_tune[arb[1] + arb[2]], n_arb.pairs_tune[arb[2] + arb[3]])
                 # traded_triangle_count += 1
                 # print(traded_triangle_count, "Start trade triangle:                           ", arb)
-                n_arb.trade_triangle(arb)
-                traded_triangle_count += 1
-                n_arb.print_estimated_amount()
-                # winsound.Beep(800, 1000)
-                print("Time:", time.time() - start2)
-                break
+                
+                
+                
+                # n_arb.trade_triangle(arb)
+                # traded_triangle_count += 1
+                # n_arb.print_estimated_amount()
+                # # winsound.Beep(800, 1000)
+                # print("Time:", time.time() - start2)
+                # break
+                
+                
+                
                 # n_arb.refresh_estimated_amount()
                 # n_arb.reduce_BNB(1)  # %
     

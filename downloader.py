@@ -70,7 +70,7 @@ class n_book_saver:
         self.b_client = None
         self.account = self.get_account()
         self.exchange_info = self.get_exchange_info()
-        self.time_pos = 0
+        self.time_pos = 1
         self.tg = time_gates()
         self.time_flag = 0
         self.chk_delay = 20  # sec
