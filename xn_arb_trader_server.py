@@ -11,7 +11,6 @@ from decimal import *
 import math
 import numpy as np
 import pandas as pd
-import random
 import textwrap
 
 from collections import defaultdict
@@ -38,11 +37,7 @@ class n_arbitrage:
 
         self.real_trade = True
         self.official_fee = 0.075  # %   ezzel számolom ki a profitot
-        self.spread = 0.097  # % ezzel kalkulálom a megfelelő triangles-t
-
-        if self.spread > 0.17:
-            print("Vigyázz túl nagy a spread")
-            sys.exit(0)
+        self.spread = 0.06  # % ezzel kalkulálom a megfelelő triangles-t
 
         self.max_cicle_lengt = 3  # maximum ennyi kriptóbol állhat a triangle
 
@@ -52,11 +47,15 @@ class n_arbitrage:
         self.spread_mod = (1 - (self.spread / 100))
         self.official_fee_mod = (1 - (self.official_fee / 100))
 
-        self.arb_check_delay = .15  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
+        self.arb_check_delay = 0.25  # arbitrás kereéséek közötti várakozáa 0.5 = 2xmásodpercenként
         # self.riport = n_riport()
         # self.stop_tradeing_at_USDT = 60
 
-        self.socket_thread = None
+        self.socket_thread1 = None
+        self.socket_thread2 = None
+        self.socket_thread3 = None
+        self.socket_thread4 = None
+
         # self.stop_thread = None
 
         self.api_key = "DAqss9T987L0ruIbVEW9rBEFDD2sKxEKBvpvDVUJfdjijzqPqBgD8semkNF2I5Ul"
@@ -71,8 +70,8 @@ class n_arbitrage:
 
         # self.symbols = ['AGLD', 'STPT', 'MXN', 'UGX', 'RENBTC', 'GLM', 'RAY', 'NEAR', 'AUDIO', 'HNT', 'ADADOWN', 'CDT', 'SPARTA', 'SUSD', 'FARM', 'XNO', 'AION', 'NPXS', 'DGB', 'ZRX', 'BCD', 'EASY', 'SANTOS', 'WING', 'WNXM', 'BCH', 'JST', 'ADAUP', 'HOT', 'AR', 'IRIS', 'RAMP', 'BCX', 'SEK', 'TRIG', 'RCN', 'COVER', 'FLM', 'GNO', 'VITE', 'GNT', 'BKRW', 'CFX', 'XPR', 'SFP', 'DIA', 'RDN', 'ACA', 'ARDR', 'LOOMOLD', 'NEBL', 'ACH', 'SLPOLD', 'BEL', 'JUV', 'ACM', 'MINA', 'GRTDOWN', 'VTHO', 'PYROLD', 'SGB', 'SALT', 'STORM', 'REN', 'REP', 'ADA', 'ELF', 'REQ', 'STORJ', 'CHF', 'ADD', 'BZRX', 'SGT', 'DF', 'RARE', 'EOSDOWN', 'PAXG', 'YOYO', 'PAX', 'CHR', 'VND', 'BCHDOWN', 'WAVES', 'CHZ', 'ADX', 'XRP', 'WPR', 'JASMY', 'AED', 'FIDA', 'SAND', 'DKK', 'OCEAN', 'FOR', 'UMA', 'DREPOLD', 'SCRT', 'TUSD', 'EZ', 'TKO', 'WABI', 'RGT', 'IDRT', 'ENG', 'ENJ', 'UNIDOWN', 'YFII', 'KZT', 'OAX', 'GRT', 'GRS', 'UND', 'HARD', 'TFUEL', 'ENS', 'LEND', 'DLT', 'TROY', 'XLMUP', 'UNI', 'BTCDOWN', 'TLM', 'HUF', 'SBTC', 'CKB', 'WRX', 'XTZ', 'LUNA', 'ETHDOWN', 'AGI', 'BCHA', 'EON', 'EOP', 'EOS', 'GO', 'NCASH', 'RIF', 'NSBT', 'SKL', 'XDATA', 'GTC', 'PEN', 'BLINK', 'SOLO', 'SXPDOWN', 'HC', 'SKY', 'BURGER', 'NAS', 'NAV', 'GTO', 'WTC', 'XVG', 'EPS', 'DNT', 'CLV', 'FLOW', 'XTZDOWN', 'XVS', 'STEEM', 'BVND', 'SLP', 'VRT', 'NBS', 'DON', 'LAZIO', 'DOT', 'IQ', 'GRTUP', '1INCH', 'KNCL', 'CHESS', 'MITH', 'ERD', 'DEGO', 'CND', 'GYEN', 'UNFI', 'FTM', 'POWR', 'ERN', 'GVT', 'WINGS', 'FTT', 'VOXEL', 'PHA', 'RLC', 'PHB', 'TRXDOWN', 'ATOM', 'XRPUP', 'QUICK', 'BLZ', 'SNM', 'BOBA', 'MBL', 'MTLX', 'SNT', 'PHP', 'SNX', 'LTCDOWN', 'FUN', 'SNMOLD', 'COP', 'COS', 'API3', 'USD', 'QKC', 'SUSHIUP', 'ROSE', 'GLMR', 'XYM', 'PURSE', 'SOL', 'TRXUP', 'CITY', 'ETC', 'BNC', 'CELR', 'UST', 'OGN', 'ETH', 'NEO', 'TOMO', 'CELO', 'KLAY', 'AUCTION', 'BADGER', 'HIGH', 'GXS', 'TRB', 'BNT', 'QLC', 'LBA', 'MDA', 'BNX', 'UTK', 'WSOL', 'HEGIC', 'MA', 'AMB', 'MC', 'TRU', 'FUEL', 'DREP', 'TRY', 'TRX', 'MDT', 'NFT', 'MDX', 'XRPDOWN', 'AERGO', 'EUR', 'AMP', 'BOT', 'NULS', 'AUTO', 'NGN', 'ANC', 'BDOT', 'EGLD', 'ANTOLD', 'SPELL', 'PUNDIX', 'FXS', 'PLA', 'HNST', 'EVX', 'CRV', 'BAKE', 'ANT', 'NU', 'FLUX', 'ANY', 'LINKUP', 'SRM', 'QISWAP', 'TORN', 'PLN', 'QNT', 'ALICE', 'OG', 'MFT', 'OM', 'BTTOLD', 'BETH', 'BQX', 'WETH', 'PHBV1', 'BETA', 'BRD', 'SSV', 'BUSD', 'CTK', 'ARPA', 'DOTDOWN', 'BRL', 'ALCX', 'CTR', 'MATIC', 'IOTX', 'SHIB', 'TVK', 'FRONT', 'ZAR', 'DOCK', 'STX', 'PNT', 'QI', 'DENT', 'MBOX', 'SUB', 'POA', 'IOST', 'CAKE', 'ETHUP', 'POE', 'OMG', 'BAND', 'SUN', 'ASTR', 'SUNOLD', 'BTC', 'TWT', 'NKN', 'RSR', 'IOTA', 'CVC', 'REEF', 'BTG', 'MIR', 'KES', 'ARK', 'LOKA', 'CVP', 'ARN', 'KEY', 'BTS', 'SPARTAOLD', 'ARS', 'CVX', 'ONE', 'LINKDOWN', 'ONG', 'ANKR', 'SUSHI', 'ALGO', 'SC', 'WBTC', 'ONT', 'PPT', 'ONX', 'BTTC', 'RUB', 'PIVX', 'ASR', 'FIRO', 'AXSOLD', 'AST', 'MANA', 'DOTUP', 'ATA', 'MEETONE', 'QSP', 'ATD', 'NMR', 'MKR', 'DODO', 'LIT', 'ICP', 'ZEC', 'ATM', 'APPC', 'JEX', 'ICX', 'LOOM', 'ZEN', 'KP3R', 'DOGE', 'DUSK', 'ALPHA', 'BOLT', 'SXP', 'HBAR', 'RVN', 'MLN', 'AUD', 'LTOOLD', 'IDR', 'CTSI', 'KAVA', 'C98', 'PSG', 'HCC', 'VIDT', 'NOK', 'AVA', 'SYS', 'COCOS', 'STRAX', 'EOSUP', 'CZK', 'GAS', 'COVEROLD', 'AAVEDOWN', 'THETA', 'BCHUP', 'WAN', 'ORN', 'PERL', 'XLMDOWN', 'MASK', 'AAVE', 'GBP', 'PERP', '1INCHUP', 'SXPUP', 'YFIDOWN', 'BOND', 'YFI', 'PERLOLD', 'MOD', 'BICO', 'OST', 'XEC', 'YGG', 'PEOPLE', 'AXS', 'ZIL', 'VAI', 'XEM', 'CTXC', 'KEYFI', 'XTZUP', 'BIDR', 'BCHSV', 'AAVEUP', 'SUSHIDOWN', 'COMP', 'ETHBNT', 'OMOLD', 'OOKI', 'RUNE', 'FORTH', 'KMD', 'GHST', 'IDEX', 'DEXE', 'AVAX', 'UAH', 'KNC', 'PROS', 'PROM', 'BTCUP', 'CHAT', 'BGBP', 'LPT', 'HIVE', 'BIFI', 'PORTO', 'SNGLS', 'PYR', 'WAXP', 'DAI', 'YFIUP', 'DAR', 'FET', 'LRC', 'REPV1', 'ADXOLD', 'MTH', 'MTL', 'VET', 'ALPACA', 'USDT', 'USDS', 'OXT', 'USDP', 'DASH', 'NVT', 'SWRV', 'EDO', 'ILV', 'GHS', 'BTCST', 'HKD', 'JOE', 'LSK', 'KEEP', 'CAD', 'BEAM', 'CAN', 'DCR', 'CREAM', 'DATA', 'IMX', 'ENTRP', 'FILUP', 'UNIUP', 'LTC', 'USDC', 'WIN', 'LTCUP', 'INJ', 'TCT', 'PARA', 'LTO', 'VGX', 'TRIBE', 'NXS', 'EFI', 'DYDX', 'AGIX', 'INR', 'CBK', 'CBM', 'INS', 'POND', 'JPY', 'LINA', 'XLM', 'LINK', 'QTUM', 'FILDOWN', 'SUPER', 'UFT', 'POLS', 'KSM', 'LUN', 'FIL', 'POLY', 'STMX', 'RNDR', 'BAL', 'FIO', 'GALA', 'VIB', 'VIA', 'FIS', 'BAR', 'RAD', 'BAT', 'VRAB', 'AKRO', 'NZD', 'MOVR', 'XMR', '1INCHDOWN', 'COTI']
 
-        self.symbols = ['USDT', 'BTC', 'ETH', 'ADA', 'LINK', 'DOT', 'TRX', 'FTM', 'SOL',
-                         'MATIC', 'ETC', 'NEO', 'ENJ', 'WAVES', 'ATOM', 'ONE', 'ZEC',
+        self.symbols = ['BTC', 'ETH', 'USDT', 'ADA', 'LINK', 'DOT', 'TRX', 'FTM', 'SOL',
+                        'MATIC', 'ETC', 'NEO', 'ENJ', 'WAVES', 'ATOM', 'ONE', 'ZEC',
                         'ONT', 'HOT', 'CHZ', 'WIN', 'AXS', 'GALA', 'ANKR', 'RUNE', 'ICP', 'LRC',
                         'ZIL', 'BCHABC', 'TFUEL', 'ERD', 'DUSK', 'ARPA', 'EGLD', 'UNI', 'GRT', 'FIS',
                         'ALICE', 'NU', 'QTUM', 'ZRX', 'OMG', 'STRAT', 'IOTA', 'REP', 'ADX', 'NULS',
@@ -85,7 +84,7 @@ class n_arbitrage:
 
         self.all_pairs = self.defa_all_pairs()
 
-        self.selected_symbols = self.symbols[:3] + random.sample(self.symbols[3:], k=44)  ## kiválasztam amivel dolgozok
+        self.selected_symbols = self.symbols[20:45] + self.symbols[:3]  ## kiválasztam amivel dolgozok
         self.arb_symbols = ['USDT']
         # self.commission = self.defa_commission()
         self.selected_pairs = self.defa_selected_pairs()  ##a kiválasztott szimbólumokhoz kapcsolódó párokat kiválasztom
@@ -126,6 +125,10 @@ class n_arbitrage:
         # self.summa_amount_USDT = 0.0
 
         # print(self.get_historical_klines_1W("BTCUSDT"))
+
+
+
+
 
     async def _get_historical_klines_1W(self, symbol):
         await self.open_binance_client()
@@ -327,27 +330,11 @@ class n_arbitrage:
         avg_price = total_amount / total_qty
         return avg_price, total_qty
 
-    def get_fills_qty2(self, order_result):
-        # print(order_result)
-        fills = order_result['fills']
-        total_qty = 0.0
-        total_amount = 0.0
-        for fs in fills:
-            # self.commission[fs['commissionAsset']] += float(fs['commission'])
-            total_qty += float(fs['qty'])
-            total_amount += (float(fs['qty']) * float(fs['price']))
-        avg_price = total_amount / total_qty
-        return avg_price, total_qty
-
-
     async def _trade(self, from_symbol, to_symbol, pair_symbol, side,
                      step_size, min_qt,
                      base_asset, quote_asset,
                      estimated_amount):
-        # print(" Trade log:", from_symbol, "->", to_symbol, " - ", pair_symbol, side,
-        #       "Step_size:", '{0:.8f}'.format(step_size),
-        #       "Min qt:", '{0:.8f}'.format(min_qt),
-        #       "Base:", base_asset, "Quote:", quote_asset)
+        print(" Trade log:", from_symbol, "->", to_symbol, " - ", pair_symbol, side)
 
         # print('nprice', "ETHUSDT", self.price['ETHUSDT'], "USDTETH", self.price['USDTETH'])
         # print('1/nprice', "ETHUSDT", 1/self.price['ETHUSDT'], "USDTETH", 1/self.price['USDTETH'])
@@ -368,12 +355,14 @@ class n_arbitrage:
 
         if side == "BUY" and self.real_trade:
             # print(estimated_amount[quote_asset], self.price[from_symbol + to_symbol])
-            trade_qty = (estimated_amount[quote_asset] * self.price[from_symbol + to_symbol])
+            trade_qty = estimated_amount[quote_asset] * self.price["".join([from_symbol, to_symbol])]
             rounded_trade_qty = self.round_qty_with_step_size(trade_qty, step_size, 5)
+            # print('rounded_trade_qty', rounded_trade_qty)
+            print('est quote:', estimated_amount[quote_asset], "rounded_trade_qty", rounded_trade_qty)
             order = self.bx_client.order_market_buy(
                 symbol=pair_symbol,
-                quantity=str(rounded_trade_qty))
-                # quoteOrderQty=estimated_amount[quote_asset])
+                # quantity=str(rounded_trade_qty),
+                quantity=rounded_trade_qty)
             # order = await self._order_market_buy(
             #     symbol=pair_symbol,
             #     quantity=rounded_trade_qty)
@@ -405,73 +394,6 @@ class n_arbitrage:
             # print('{0:.8f}'.format(traded_price), '{0:.8f}'.format(1 / traded_price))
             self.traded_prices.append(traded_price)
             return traded_price * traded_qty
-
-    def trade2(self, from_symbol, to_symbol, pair_symbol, side,
-                     step_size, min_qt,
-                     base_asset, quote_asset,
-                     estimated_amount):
-        # print(" Trade log:", from_symbol, "->", to_symbol, " - ", pair_symbol, side,
-        #       "Step_size:", '{0:.8f}'.format(step_size),
-        #       "Min qt:", '{0:.8f}'.format(min_qt),
-        #       "Base:", base_asset, "Quote:", quote_asset)
-
-        # print('nprice', "ETHUSDT", self.price['ETHUSDT'], "USDTETH", self.price['USDTETH'])
-        # print('1/nprice', "ETHUSDT", 1/self.price['ETHUSDT'], "USDTETH", 1/self.price['USDTETH'])
-
-        # order = self.bx_client.order_market_buy(
-        #     symbol='ETHUSDT',
-        #     quantity=str(0.014))
-        # # print("speed 1", datetime.now() - start)
-        # print("buy1", order['fills'][0]['price'], round(1/ float(order['fills'][0]['price']), 8))
-        #
-        # order = self.bx_client.order_market_sell(
-        #     symbol='ETHUSDT',
-        #     quantity=str(0.014))
-        # # print("speed 3", datetime.now() - start)
-        # print("sell", order['fills'][0]['price'], round(1 / float(order['fills'][0]['price']), 8))
-        #
-        # sys.exit(0)
-
-        if side == "BUY" and self.real_trade:
-            # print(estimated_amount[quote_asset], self.price[from_symbol + to_symbol])
-            trade_qty = (estimated_amount[quote_asset] * self.price[from_symbol + to_symbol])
-            rounded_trade_qty = self.round_qty_with_step_size(trade_qty, step_size, 5)
-            order = self.bx_client.order_market_buy(
-                symbol=pair_symbol,
-                quantity=str(rounded_trade_qty))
-                # quoteOrderQty=estimated_amount[quote_asset])
-            # order = await self._order_market_buy(
-            #     symbol=pair_symbol,
-            #     quantity=rounded_trade_qty)
-
-            traded_price, traded_qty = self.get_fills_qty2(order)
-            # print('{0:.8f}'.format(traded_price), '{0:.8f}'.format(1 / traded_price))
-            self.traded_prices.append(1 / traded_price)
-            return traded_qty
-        elif side == "SELL" and self.real_trade:
-            rounded_trade_qty = self.round_qty_with_step_size(estimated_amount[base_asset], step_size)
-            # if rounded_trade_qty > estimated_amount[from_symbol]:
-            #     rounded_trade_qty = round(rounded_trade_qty - step_size, 8)
-
-
-            ## biztonsági tartalék mozgó árakra
-            # rounded_trade_qty = round(rounded_trade_qty - step_size, 8)
-
-            # print("price", self.price[from_symbol + to_symbol])
-            # print("rounded_trade_qty", side, rounded_trade_qty)
-            # order = await self._order_market_sell(
-            #     symbol=pair_symbol,
-            #     quantity=rounded_trade_qty)
-
-            order = self.bx_client.order_market_sell(
-                symbol=pair_symbol,
-                quantity=rounded_trade_qty)
-
-            traded_price, traded_qty = self.get_fills_qty2(order)
-            # print('{0:.8f}'.format(traded_price), '{0:.8f}'.format(1 / traded_price))
-            self.traded_prices.append(traded_price)
-            return traded_price * traded_qty
-
 
     def round_qty_with_step_size(slef, quantity, step_size, reduce=0):
         reduce = Decimal(reduce * step_size)  # ennyi darabbal visszaveszi
@@ -544,53 +466,6 @@ class n_arbitrage:
             #       reduce(lambda x, y: x * y, self.triangle_profit) * n_arb.official_fee_mod_triangle)
             # print(" Realised prices:", str(self.triangle_profit))
             # print()
-
-    def trade_triangle2(self, arb):
-        # est_prices = self.est_trade_prices(arb)
-        # if np.prod(est_prices) * self.spread_mod_triangle > 1:
-        self.traded_prices = []
-        for i in range(len(arb) - 1):
-            from_symbol = arb[i]
-            to_symbol = arb[i + 1]
-            from_to_symbol = "".join([from_symbol, to_symbol])
-            # print(self.pair_info[from_to_symbol])
-            i_pair_symbol = self.pair_info[from_to_symbol][0]
-            i_side = self.pair_info[from_to_symbol][1]
-            i_step_size = self.pair_info[from_to_symbol][2]
-            i_min_qty = self.pair_info[from_to_symbol][3]
-            base_asset = self.pair_info[from_to_symbol][4]
-            qoute_asset = self.pair_info[from_to_symbol][5]
-            # sys.exit(0)
-            estimated_qty = self.trade2(from_symbol=from_symbol,
-                                             to_symbol=to_symbol,
-                                             pair_symbol=i_pair_symbol,
-                                             side=i_side,
-                                             step_size=i_step_size,
-                                             min_qt=i_min_qty,
-                                             quote_asset=qoute_asset,
-                                             base_asset=base_asset,
-                                             estimated_amount=self.estimated_amount.copy())
-            self.estimated_amount[to_symbol] = estimated_qty + self.estimated_amount[to_symbol]
-            self.estimated_amount[from_symbol] = 0
-        # self.account = await self.b_client.get_account()
-        self.account = self.bx_client.get_account()
-        self.estimated_amount = self.get_estimated_amount()
-        print("")
-        print(datetime.now(), arb)
-        # print("Est prices:     ",
-        #       '{0:.8f}'.format(est_prices[0]),
-        #       '{0:.8f}'.format(est_prices[1]),
-        #       '{0:.8f}'.format(est_prices[2]), "Gross profit: ",
-        #       np.prod(est_prices))
-
-        print("Realised prices:",
-              '{0:.8f}'.format(self.traded_prices[0]),
-              '{0:.8f}'.format(self.traded_prices[1]),
-              '{0:.8f}'.format(self.traded_prices[2]), "Gross profit: ",
-              np.prod(self.traded_prices)
-              )
-        self.print_estimated_amount()
-
 
     def arb_bellman_ford_negative_cycles(self, g, s):
         """
@@ -688,9 +563,26 @@ class n_arbitrage:
             return []
 
     def start(self):
+        self.socket_thread1 = Thread(target=self.start_asyc_websocket, args=(1,), daemon=True)
+        self.socket_thread2 = Thread(target=self.start_asyc_websocket, args=(2,), daemon=True)
+        self.socket_thread3 = Thread(target=self.start_asyc_websocket, args=(3,), daemon=True)
+        self.socket_thread4 = Thread(target=self.start_asyc_websocket, args=(4,), daemon=True)
 
-        self.socket_thread = Thread(target=self.start_asyc_websocket, daemon=True)
-        self.socket_thread.start()
+        print("Start thread 1")
+        self.socket_thread1.start()
+        time.sleep(3)
+        print("Start thread 2")
+        self.socket_thread2.start()
+        time.sleep(3)
+        print("Start thread 3")
+        self.socket_thread3.start()
+        time.sleep(3)
+        print("Start thread 4")
+        self.socket_thread4.start()
+
+
+        # self.socket_thread1.join()
+        # self.socket_thread2.join()
 
         # monitoring the error
         # self.stop_thread = Thread(target=self.restart_stream, daemon=True)
@@ -710,20 +602,27 @@ class n_arbitrage:
     #     self.multiplex_socket = self.b_twm.start_multiplex_socket(callback=self.socket_handler,
     #                                                               streams=self.socket_list)
 
-    async def asyc_websocket(self):
+    async def asyc_websocket(self, slice):
         client = await AsyncClient.create()
         bm = BinanceSocketManager(client)
 
         # start any sockets here, i.e a trade socket
         # ts = bm.trade_socket('BNBBTC')
+        x_slist_len = int(len(self.socket_list) / 4)
+        if slice == 1:
+            ts = bm.multiplex_socket(self.socket_list[:x_slist_len])
+        elif slice == 2:
+            ts = bm.multiplex_socket(self.socket_list[x_slist_len:x_slist_len * 2])
+        elif slice == 3:
+            ts = bm.multiplex_socket(self.socket_list[x_slist_len * 2:x_slist_len * 3])
+        elif slice == 4:
+            ts = bm.multiplex_socket(self.socket_list[x_slist_len * 3:])
 
-        ts = bm.multiplex_socket(self.socket_list)
+
         # then start receiving messages
         async with ts as tscm:
             while True:
                 res = await tscm.recv()
-                # print(res)
-
                 # szét kell választani szimbolumokra, mivel nem egyen hosszúságú ezért használok
                 # dictionariket
                 # print(res)
@@ -745,11 +644,11 @@ class n_arbitrage:
 
         await client.close_connection()
 
-    def start_asyc_websocket(self):
+    def start_asyc_websocket(self, slice):
+        # print('start_asyc_websocket', slice)
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-
-        loop.run_until_complete(self.asyc_websocket())
+        loop.run_until_complete(self.asyc_websocket(slice))
         loop.close()
 
     def est_trade_prices(self, arb):
@@ -771,10 +670,6 @@ if __name__ == '__main__':
     n_arb = n_arbitrage()
     n_arb.start()
 
-    # start_amount = 1000
-    # sum_profit = 0
-    # print("Start Trade -------------------")
-    # n_arb.print_estimated_amount()
     init_time = 8
     print("Init price dataframe:")
     for i in range(init_time + 1):
@@ -798,31 +693,8 @@ if __name__ == '__main__':
     last_triangle = []
     while True:
         for arb in n_arb.arb_find(n_arb.arb_symbols):  # ez egyben egy if is :)
-            print("Try:", arb)
-            # print("Try:", arb,
-            #       "".join([arb[0], arb[1]]), '{0:.8f}'.format(n_arb.price["".join([arb[0], arb[1]])]),
-            #       "".join([arb[1], arb[2]]), '{0:.8f}'.format(n_arb.price["".join([arb[1], arb[2]])]),
-            #       "".join([arb[2], arb[3]]), '{0:.8f}'.format(n_arb.price["".join([arb[2], arb[3]])]))
-            # print("1/Try:", arb,
-            #       "".join([arb[0], arb[1]]), '{0:.8f}'.format(1/n_arb.price["".join([arb[1], arb[0]])]),
-            #       "".join([arb[1], arb[2]]), '{0:.8f}'.format(1/n_arb.price["".join([arb[2], arb[1]])]),
-            #       "".join([arb[2], arb[3]]), '{0:.8f}'.format(1/n_arb.price["".join([arb[3], arb[2]])]))
-            n_arb.trade_triangle2(arb)
-        time.sleep(n_arb.arb_check_delay)
-
-                # if int(all_arb_count / 10) == all_arb_count / 10:
-                #     n_arb.riport.clear()
-                #     i_ssf = dict(sorted(n_arb.freq_selected_symbols.items(), key=lambda item: item[1]))
-                #     n_arb.riport.add("Selected symbols:", i_ssf)
-                #     n_arb.riport.add_section("Most frequent triangles:")
-                #     n_arb.riport.add("Triangles:", n_arb.freq_triangles)
-                #     n_arb.riport.add_section("Most frequent start symbols:")
-                #     n_arb.riport.add("Symbols:", n_arb.freq_start_symbol)
-                #     n_arb.riport.add_section("Profit and transactions:")
-                #     n_arb.riport.add("Transaction count:", transactions_count)
-                #     n_arb.riport.add("Profit array:", profit_arr)
-                #     n_arb.riport.add("Average profit", sum(profit_arr)/len(profit_arr))
-                #     n_arb.riport.add("Profit array save:", profit_arr_save)
-                #     n_arb.riport.add("Average profit save", sum(profit_arr_save) / len(profit_arr_save))
-                #     n_arb.riport.write()
-    
+            if "ETH" in arb and "BTC" in arb:
+                pass
+            else:
+                print("Try:", arb)
+                n_arb.trade_triangle(arb)

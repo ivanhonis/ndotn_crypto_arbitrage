@@ -70,46 +70,47 @@ def is_all_symbols_off(i_dict, i_len):
 
 
 def save_collected_data(symbol, i_trades):
-    print("save symbol:", symbol)
-    min_id = int(i_trades[0]['id'])
-    min_datetime = str(i_trades[0]['time'])
-    max_id = int(i_trades[0]['id'])
-    max_datetime = str(i_trades[0]['time'])
+    if len(i_trades) > 0:
+        print("save symbol:", symbol)
+        min_id = int(i_trades[0]['id'])
+        min_datetime = str(i_trades[0]['time'])
+        max_id = int(i_trades[0]['id'])
+        max_datetime = str(i_trades[0]['time'])
 
-    for ix in i_trades:
-        if min_id > int(ix['id']):
-            min_id = int(ix['id'])
-            min_datetime = str(ix['time'])
-        if max_id < int(ix['id']):
-            max_id = int(ix['id'])
-            max_datetime = str(ix['time'])
+        for ix in i_trades:
+            if min_id > int(ix['id']):
+                min_id = int(ix['id'])
+                min_datetime = str(ix['time'])
+            if max_id < int(ix['id']):
+                max_id = int(ix['id'])
+                max_datetime = str(ix['time'])
 
 
-    # ids = []
-    # for ix in i_trades:
-    #     ids.append(int(ix['id']))
-    #
-    # # print(ids)
-    # act_id = min_id
-    # missing = []
-    # while act_id < max_id:
-    #     if act_id not in ids:
-    #         missing.append(act_id)
-    #     act_id += 1
+        # ids = []
+        # for ix in i_trades:
+        #     ids.append(int(ix['id']))
+        #
+        # # print(ids)
+        # act_id = min_id
+        # missing = []
+        # while act_id < max_id:
+        #     if act_id not in ids:
+        #         missing.append(act_id)
+        #     act_id += 1
 
-    # print("first: ", 0, i_trades[0]['id'], unix_to_datetime(i_trades[0]['time']))
-    # print("last: ", len(i_trades), i_trades[-1]['id'], unix_to_datetime(i_trades[-1]['time']))
-    print("  min id:", min_id, "max id:", max_id)
-    print("  min dt:", str(unix_to_datetime(min_datetime)), "max dt:", str(unix_to_datetime(max_datetime)))
-    print("  len:", len(i_trades))
-    # if len(missing) > 0:
-    #     print('  missing id:', len(missing), missing[0], missing[-1])
-    # else:
-    #     print('  missing id: 0')
+        # print("first: ", 0, i_trades[0]['id'], unix_to_datetime(i_trades[0]['time']))
+        # print("last: ", len(i_trades), i_trades[-1]['id'], unix_to_datetime(i_trades[-1]['time']))
+        print("  min id:", min_id, "max id:", max_id)
+        print("  min dt:", str(unix_to_datetime(min_datetime)), "max dt:", str(unix_to_datetime(max_datetime)))
+        print("  len:", len(i_trades))
+        # if len(missing) > 0:
+        #     print('  missing id:', len(missing), missing[0], missing[-1])
+        # else:
+        #     print('  missing id: 0')
 
-    f_name = symbol + "-" + str(min_id) + "-" + str(max_id)
-    print("  file name:", f_name)
-    pickle.dump(i_trades, open(path + f_name + ".pickle", "wb"))
+        f_name = symbol + "-" + str(min_id) + "-" + str(max_id)
+        print("  file name:", f_name)
+        pickle.dump(i_trades, open(path + f_name + ".pickle", "wb"))
 
 path = "D:/Apa/Coder/Binance_tick_data/"
 
@@ -175,6 +176,8 @@ while True:
         if symbol_run[sy] == 1 and last_saved_id[sy] > last_read_id[sy]:
             print('set 0', sy)
             symbol_run[sy] = 0
+            save_collected_data(sy, collected_data[sy])
+            collected_data[sy] = []
 
     # Save data
     for sy in symbols:
@@ -185,6 +188,6 @@ while True:
     if is_all_symbols_off(symbol_run, 26):
         break
 
-for sy in symbols:
-    if len(collected_data[sy]) > 0:
-        save_collected_data(sy, collected_data[sy])
+# for sy in symbols:
+#     if len(collected_data[sy]) > 0:
+#         save_collected_data(sy, collected_data[sy])
