@@ -39,11 +39,12 @@ class n_arbitrage:
 
     def __init__(self):
 
-        self.lot_size = 90
-        self.spread = 0.085  # % ezzel kalkulálom a megfelelő triangles-t d
-        self.symbols_no = 1150  # over 1000 it is max
-        self.orderbook_modifier = 0.032 / 100
+        self.lot_size = 50
+        self.spread = 0.075  # % ezzel kalkulálom a megfelelő triangles-t d
+        self.orderbook_modifier = 0.055 / 100
+        self.start_price_modifier_ticks = -1  # hány tickel módosítsa az árat
 
+        self.symbols_no = 1150  # over 1000 it is max
         self.spread_mod_triangle = (1 - (self.spread / 100)) ** 3
         self.socket_thread = None
 
@@ -98,7 +99,7 @@ class n_arbitrage:
         'USTC', 'VET', 'VGX', 'VIDT', 'VOXEL', 'WAVES', 'WBTC', 'WIN', 'WING', 'WNXM',
         'WOO', 'WTC', 'XLM', 'XMR', 'XRP', 'XTZ', 'YFI', 'YFII', 'YGG', 'ZEC', 'ZIL', 'ZRX']
         
-        self.off_symbols = ['BIDR', 'BUSD', 'TRY']
+        self.off_symbols = ['BIDR']
         for osy in self.off_symbols:
             self.symbols.remove(osy)
 
@@ -107,6 +108,7 @@ class n_arbitrage:
         self.selected_symbols = self.symbols[:self.symbols_no]  ## kiválasztam amivel dolgozok
 
         self.start_symbols = ['USDT']
+        self.start_symbol = self.start_symbols[0]
         # self.commission = self.defa_commission()
         self.selected_pairs = self.defa_selected_pairs()  ##a kiválasztott szimbólumokhoz kapcsolódó párokat kiválasztom
 
@@ -198,14 +200,14 @@ class n_arbitrage:
 
         ## kitörlöm azokat a párokat amik sehol nem lettek felhasználba
         ## vektorok szorzásánál ezeket felesleges szorozgatni
-        del_dic = []
-        for pm in self.refresh_map:
-            if 0 == len(self.refresh_map[pm][0]) + len(self.refresh_map[pm][1]) + len(self.refresh_map[pm][2]):
-                del_dic.append(pm)
-
-        if del_dic:
-            print("ezeket sehová nem tudom bekombinálni")
-            print(del_dic)
+        # del_dic = []
+        # for pm in self.refresh_map:
+        #     if 0 == len(self.refresh_map[pm][0]) + len(self.refresh_map[pm][1]) + len(self.refresh_map[pm][2]):
+        #         del_dic.append(pm)
+        #
+        # if del_dic:
+        #     print("ezeket sehová nem tudom bekombinálni")
+        #     print(del_dic)
 
         ab1 = np.full(self.maxi_pairs.shape[0], 0.00000000, dtype=float)
         ab2 = np.full(self.maxi_pairs.shape[0], 0.00000000, dtype=float)
@@ -248,8 +250,12 @@ class n_arbitrage:
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(self._get_account())
 
-    def get_BNB(self):
+    def get_BNBUSDT(self):
         res = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT")
+        return float(res.json()["price"])
+
+    def get_BNBBTC(self):
+        res = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=BNBBTC")
         return float(res.json()["price"])
 
     async def _get_exchange_info(self):
@@ -276,20 +282,58 @@ class n_arbitrage:
 
     def print_estimated_amount(self):
         self.account = self.bx_client.get_account()
-        self.estimated_amount = self.get_estimated_amount()
+
+        estimated_amount = {}
+        for sesy in self.selected_symbols:
+            estimated_amount[sesy] = self.get_amount_by_symbol(sesy)
+
+        # BNB külön kezelem
+        estimated_amount["BNB"] = self.get_amount_by_symbol("BNB") # mivel erre nem lehet kereskedni ezt külön beteszem
+        bnbusdt = self.get_BNBUSDT()
+        bnbbtc = self.get_BNBBTC()
+        self.price["BNBUSDT"] = bnbusdt
+        self.price["USDTBNB"] = 1 / bnbusdt
+
+        self.price["BNBBTC"] = bnbbtc
+        self.price["BTCBNB"] = 1 / bnbbtc
+
+
         print("Spot wallet:")
+        print(" symbol    amount       USD        BTC")
         total_in_USDT = 0
-        self.price["BNBUSDT"] = self.get_BNB()
-        for ea in self.estimated_amount:
-            if self.estimated_amount[ea] != 0:
-                symbol_value_in_USDT = round(self.estimated_amount[ea] * self.price[ea + "USDT"], 8)
+        total_in_BTC = 0
+
+        for ea in estimated_amount:
+            if estimated_amount[ea] != 0:
+                if ea == 'USDT':
+                    price_USDT = 1
+                else:
+                    prc1 = 0 if self.price[ea + "USDT"] == 1 else self.price[ea + "USDT"]
+                    prc2 = 0 if self.price["USDT" + ea] == 1 else 1 / self.price["USDT" + ea]
+                    price_USDT = prc1 if ea + "USDT" in self.selected_pairs else prc2
+
+                if ea == 'BTC':
+                    price_BTC = 1
+                else:
+                    prc1 = 0 if self.price[ea + "BTC"] == 1 else self.price[ea + "BTC"]
+                    prc2 = 0 if self.price["BTC" + ea] == 1 else 1 / self.price["BTC" + ea]
+                    price_BTC = prc1 if ea + "BTC" in self.selected_pairs else prc2
+
+                symbol_value_in_USDT = round(estimated_amount[ea] * price_USDT, 3)
+                symbol_value_in_BTC = round(estimated_amount[ea] * price_BTC, 8)
                 total_in_USDT += symbol_value_in_USDT
+                total_in_BTC += symbol_value_in_BTC
                 eap = ea + "     "
-                print(" ", eap[0:5],
-                      '{0:.8f}'.format(self.estimated_amount[ea]),
-                      '{0:.1f}'.format(symbol_value_in_USDT))
-            
-        print("Total(USDT):", '{0:.2f}'.format(total_in_USDT))
+                amount = '{0:.8f}'.format(estimated_amount[ea]) + "                    "
+                vusdt = '{0:.2f}'.format(symbol_value_in_USDT) + "                   "
+                vbtc = '{0:.8f}'.format(symbol_value_in_BTC) + "                   "
+                print(" ", eap[0:5], amount[0:15], vusdt[0:10], vbtc[0:10],)
+
+        total_usdtstr = '{0:.2f}'.format(total_in_USDT) + "                                  "
+        total_btcstr = '{0:.8f}'.format(total_in_BTC) + "                                  "
+
+        print("________________________________________________")
+        print("Total:                 ", total_usdtstr[:10], total_btcstr[:10])
 
     def get_estimated_amount(self):
         estimated_amount = {}
@@ -307,10 +351,11 @@ class n_arbitrage:
                     base = self.get_symbol_info2(si1 + si2)['baseAsset']
                     quot = self.get_symbol_info2(si1 + si2)['quoteAsset']
                     step_size = float(filters['stepSize'])
+                    ticksize = float(self.get_symbol_info2(si1 + si2)['filters'][0]['tickSize'])
                     # print(self.get_symbol_info2(si1 + si2)['symbol'], step_size)
                     min_qty = float(filters['minQty'])
-                    pair_info[si1 + si2] = [si1 + si2, "SELL", step_size, min_qty, base, quot]
-                    pair_info[si2 + si1] = [si1 + si2, "BUY", step_size, min_qty, base, quot]
+                    pair_info[si1 + si2] = [si1 + si2, "SELL", step_size, min_qty, base, quot, ticksize]
+                    pair_info[si2 + si1] = [si1 + si2, "BUY", step_size, min_qty, base, quot, ticksize]
                     # ez egy miről mire megyek katalógus
         return pair_info
 
@@ -387,20 +432,21 @@ class n_arbitrage:
 
                 bid = round(float(res['data']['b']), 8)
                 bid_mod = round(bid * (1 - self.orderbook_modifier), 8)
+                set_bid = bid if s1 == self.start_symbol else bid_mod
                 ask = round(float(res['data']['a']), 8)
                 ask_mod = round(ask * (1 + self.orderbook_modifier), 8)
-                ask_rec = round(1 / ask_mod, 8)
+                set_ask = round(1 / ask, 8) if s2 == self.start_symbol else round(1 / ask_mod, 8)
 
                 self.price[s1 + s2] = bid
                 self.price[s2 + s1] = ask
 
-                np.put(ab1, self.refresh_map[s1s2][0], bid_mod)
-                np.put(ab2, self.refresh_map[s1s2][1], bid_mod)
-                np.put(ab3, self.refresh_map[s1s2][2], bid_mod)
+                np.put(ab1, self.refresh_map[s1s2][0], set_bid)
+                np.put(ab2, self.refresh_map[s1s2][1], set_bid)
+                np.put(ab3, self.refresh_map[s1s2][2], set_bid)
 
-                np.put(ab1, self.refresh_map[s2s1][0], ask_rec)
-                np.put(ab2, self.refresh_map[s2s1][1], ask_rec)
-                np.put(ab3, self.refresh_map[s2s1][2], ask_rec)
+                np.put(ab1, self.refresh_map[s2s1][0], set_ask)
+                np.put(ab2, self.refresh_map[s2s1][1], set_ask)
+                np.put(ab3, self.refresh_map[s2s1][2], set_ask)
 
                 # if self.run_analys:
                 #
@@ -525,27 +571,30 @@ class n_arbitrage:
                     profit = ab1[max_row] * ab2[max_row] * ab3[max_row] * self.spread_mod_triangle
                     calculate_count += 1
 
-                    if calculate_count % 25000 == 0:
+                    if calculate_count % 100000 == 0:
                         print("Calculated arb: ", calculate_count, profit, 'trade_in_progress', trade_in_progress)
 
-                    arb_str = str([self.maxi_pairs[max_row][0].decode('UTF-8'),
-                                    self.maxi_pairs[max_row][1].decode('UTF-8'),
-                                    self.maxi_pairs[max_row][2].decode('UTF-8')])
+                    sy1 = self.maxi_pairs[max_row][0].decode('UTF-8')
+                    sy2 = self.maxi_pairs[max_row][1].decode('UTF-8')
+                    sy3 = self.maxi_pairs[max_row][2].decode('UTF-8')
+
+                    arb_str = str([sy1, sy2, sy3])
 
                     if profit > 1 and not trade_in_progress and last_arb != arb_str:
                     # if profit > 1 and not trade_in_progress:
                         trade_in_progress = True
                         last_arb = arb_str
 
-                        print(self.maxi_pairs[max_row][0].decode('UTF-8'),
-                              self.maxi_pairs[max_row][1].decode('UTF-8'),
-                              self.maxi_pairs[max_row][2].decode('UTF-8'), profit)
+                        est_profit = ab1[max_row] * ab2[max_row] * ab3[max_row]
+                        print("")
+                        print("Start trade:", sy1, sy2, sy3)
+                        print("Estimated profit:", ab1[max_row], ab2[max_row], ab3[max_row], est_profit)
 
                         # sp1 egyenes
                         # spmx ha kell reciprok
-                        sp1 = self.price[self.maxi_pairs[max_row][0].decode('UTF-8')]
-                        sp2 = self.price[self.maxi_pairs[max_row][1].decode('UTF-8')]
-                        sp3 = self.price[self.maxi_pairs[max_row][2].decode('UTF-8')]
+                        sp1 = self.price[sy1]
+                        sp2 = self.price[sy2]
+                        sp3 = self.price[sy3]
                         
                         print("Orderbook prices:     ",
                               '{0:.8f}'.format(sp1),
@@ -557,30 +606,48 @@ class n_arbitrage:
                               '{0:.8f}'.format(1 / sp2),
                               '{0:.8f}'.format(1 / sp3))
 
-                        t_amount1 = self.lot_size
-                        sy = self.maxi_pairs[max_row][0].decode('UTF-8')
-                        t_side1 = self.pair_info[sy][1]
-                        t_symbol1 = self.pair_info[sy][0]
-                        t_step_size1 = self.pair_info[sy][2]
-                        t_min_qt1 = self.pair_info[sy][3]
-                        t_amount_mod_1 = self.round_qty_with_step_size(t_amount1 * 1 / self.price[sy], t_step_size1, 1)
-                        t_price1 = sp1
-                        print('1 symbol', t_symbol1, 'price', t_price1, 'side', SIDE_BUY, 'quantity', t_amount_mod_1, 'minqt', t_min_qt1 )
-                        order1 = self.bx_client.order_limit(symbol=t_symbol1,
-                                                            price=t_price1,
-                                                            side=SIDE_BUY,
-                                                            quantity=t_amount_mod_1,
-                                                            timeInForce=TIME_IN_FORCE_IOC)
-                        print(order1)
+                        t_side1 = self.pair_info[sy1][1]
+                        t_symbol1 = self.pair_info[sy1][0]
+                        t_step_size1 = self.pair_info[sy1][2]
+                        t_min_qt1 = self.pair_info[sy1][3]
+                        t_ticksize = self.pair_info[sy1][6]
+                        t_amount_mod_buy = self.round_qty_with_step_size(self.lot_size / (self.price[sy1] - (t_ticksize * self.start_price_modifier_ticks)), t_step_size1, 1)
+                        t_amount1 = t_amount_mod_buy if t_side1 == "BUY" else self.lot_size
+
+                        # roundv = len(str(self.price[sy1]).split('.')[1])
+
+                        t_price1 = self.price[sy1] - (t_ticksize * self.start_price_modifier_ticks) \
+                                    if t_side1 == "BUY" else \
+                                    self.price[t_symbol1] + (t_ticksize * self.start_price_modifier_ticks)
+
+                        # t_price1 = self.price[sy1] if t_side1 == "BUY" else self.price[t_symbol1]
+
+                        #price hack !!!!!!!!!!!!!!!!
+                        # biden akarok venni és askon akarok eladni
+                        # t_price1 = self.price[t_symbol1] if t_side1 == "BUY" else self.price[sy1]
+
+
+
+                        for xtry in range(2):
+                            print(xtry, 'try, 1 symbol', t_symbol1, 'price', self.price[sy1], self.price[t_symbol1],
+                                  '{0:.8f}'.format(t_price1), 'side', t_side1, 'quantity', t_amount1, 'minqt',
+                                  t_min_qt1)
+                            order1 = self.bx_client.order_limit(symbol=t_symbol1,
+                                                                price='{0:.8f}'.format(t_price1),
+                                                                side=t_side1,
+                                                                quantity=t_amount1,
+                                                                timeInForce=TIME_IN_FORCE_IOC)
+                            if order1['status'] != 'EXPIRED':
+                                break
+                        # print(order1)
                         if order1['status'] != 'EXPIRED':
                             executedQty_1 = round(float(order1['executedQty']), 8)
-                            # cummulativeQuoteQty_1 = round(float(order1['cummulativeQuoteQty']), 8)
-                            t_amount2 = executedQty_1  # első csak buy lehet if t_side1 == "BUY" else cummulativeQuoteQty_1
-                            sy = self.maxi_pairs[max_row][1].decode('UTF-8')
-                            t_side2 = self.pair_info[sy][1]
-                            t_symbol2 = self.pair_info[sy][0]
-                            t_step_size2 = self.pair_info[sy][2]
-                            t_min_qt2 = self.pair_info[sy][3]
+                            cummulativeQuoteQty_1 = round(float(order1['cummulativeQuoteQty']), 8)
+                            t_amount2 = executedQty_1 if t_side1 == "BUY" else cummulativeQuoteQty_1
+                            t_side2 = self.pair_info[sy2][1]
+                            t_symbol2 = self.pair_info[sy2][0]
+                            t_step_size2 = self.pair_info[sy2][2]
+                            t_min_qt2 = self.pair_info[sy2][3]
                             t_amount2 = self.round_qty_with_step_size(t_amount2, t_step_size2) if t_side2 == "SELL" else t_amount2
                             print('2 symbol', t_symbol2, 'side', t_side2, 'quantity', t_amount2, 'minqt', t_min_qt2)
                             order2 = self.bx_client.order_market(symbol=t_symbol2,
@@ -591,18 +658,17 @@ class n_arbitrage:
                             cummulativeQuoteQty_2 = round(float(order2['cummulativeQuoteQty']), 8)
                             t_amount3 = executedQty_2 if t_side2 == "BUY" else cummulativeQuoteQty_2
 
-                            sy = self.maxi_pairs[max_row][2].decode('UTF-8')
-                            t_side3 = self.pair_info[sy][1]
-                            t_symbol3 = self.pair_info[sy][0]
-                            t_step_size3 = self.pair_info[sy][2]
-                            t_min_qt3 = self.pair_info[sy][3]
+                            t_side3 = self.pair_info[sy3][1]
+                            t_symbol3 = self.pair_info[sy3][0]
+                            t_step_size3 = self.pair_info[sy3][2]
+                            t_min_qt3 = self.pair_info[sy3][3]
                             t_amount3 = self.round_qty_with_step_size(t_amount3, t_step_size3) if t_side3 == "SELL" else t_amount3
                             print('3 symbol', t_symbol3, 'side', t_side3, 'quantity', t_amount3, 'minqt', t_min_qt3)
                             order3 = self.bx_client.order_market(symbol=t_symbol3,
                                                            side=SIDE_BUY if t_side3 == "BUY" else SIDE_SELL,
                                                        quantity=None if t_side3 == "BUY" else t_amount3,
                                                        quoteOrderQty=t_amount3 if t_side3 == "BUY" else None)
-                            print(order3)
+                            # print(order3)
 
                             p1 = round(float(order1['fills'][0]['price']), 8)
                             p2 = round(float(order2['fills'][0]['price']), 8)
@@ -615,12 +681,12 @@ class n_arbitrage:
                             if t_side3 == "BUY":
                                 p3 = 1 / p3
 
-                            print("Traded prices:   ", p1, p2, p3, round(p1 * p2 * p3, 8))
+                            print("Realised profit", p1, p2, p3, round(p1 * p2 * p3, 8))
 
                             self.print_estimated_amount()
                             time.sleep(20)
                         else:
-                            print("Start price failed:")
+                            print("Start price failed. ",sy1, sy2, sy3)
                             # trade_in_progress = False
                         trade_in_progress = False
 
@@ -634,15 +700,21 @@ class n_arbitrage:
         loop.close()
 
 if __name__ == '__main__':
+    print('nDot - Arbitrage')
+    print('Get symbols from Binance')
     n_arb = n_arbitrage()
     n_arb.start()
     init_time = 8
     print("Number of pairs:", len(n_arb.selected_pairs))
     print("Spread:", n_arb.spread, "%")
+    print("Orderbook modifier:", n_arb.orderbook_modifier * 100, "%")
     print("Start symbol:", n_arb.start_symbols)
     print("Lot size:", n_arb.lot_size)
-    n_arb.print_estimated_amount()
+
     n_arb.run_analys = True
+    time.sleep(20)
+    n_arb.print_estimated_amount()
+
     while True:
         time.sleep(20)
 
