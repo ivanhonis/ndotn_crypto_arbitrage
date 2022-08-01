@@ -40,7 +40,7 @@ class n_arbitrage:
     def __init__(self):
 
         self.lot_size = 90
-        self.spread = 0.085  # % ezzel kalkulálom a megfelelő triangles-t
+        self.spread = 0.085  # % ezzel kalkulálom a megfelelő triangles-t d
         self.symbols_no = 1150  # over 1000 it is max
         self.orderbook_modifier = 0.032 / 100
 
