@@ -6,8 +6,9 @@
       <excludeFolder url="file://$MODULE_DIR$/venv39" />
       <excludeFolder url="file://$MODULE_DIR$/venv37" />
       <excludeFolder url="file://$MODULE_DIR$/venv372" />
+      <excludeFolder url="file://$MODULE_DIR$/venv_new" />
     </content>
-    <orderEntry type="inheritedJdk" />
+    <orderEntry type="jdk" jdkName="Python 3.9 (ndotn_crypto_arbitrage)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>
