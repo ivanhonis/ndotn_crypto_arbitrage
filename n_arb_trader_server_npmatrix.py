@@ -38,8 +38,8 @@ class n_arbitrage:
 
     def __init__(self):
 
-        self.lot_size = 0.002
-        self.spread = 0.095  # % ezzel kalkulálom a megfelelő triangles-t
+        self.lot_size = 42
+        self.spread = 0.035  # % ezzel kalkulálom a megfelelő triangles-t
 
         self.spread_mod_triangle = (1 - (self.spread / 100)) ** 3
 
@@ -79,9 +79,9 @@ class n_arbitrage:
 
         self.all_pairs = self.defa_all_pairs()
 
-        self.selected_symbols = self.symbols  ## kiválasztam amivel dolgozok
+        self.selected_symbols = self.symbols[:80]  ## kiválasztam amivel dolgozok
 
-        self.start_symbols = ['SUSHI']
+        self.start_symbols = ['USDT']
         # self.commission = self.defa_commission()
         self.selected_pairs = self.defa_selected_pairs()  ##a kiválasztott szimbólumokhoz kapcsolódó párokat kiválasztom
 
@@ -359,7 +359,7 @@ class n_arbitrage:
                 ask_rec = round(1 / ask, 8)
 
                 self.price[s1 + s2] = bid
-                self.price[s2 + s1] = ask_rec
+                self.price[s2 + s1] = ask
 
                 np.put(ab1, self.refresh_map[s1s2][0], bid)
                 np.put(ab2, self.refresh_map[s1s2][1], bid)
@@ -392,70 +392,78 @@ class n_arbitrage:
                               '{0:.8f}'.format(ab2[max_row]),
                               '{0:.8f}'.format(ab3[max_row]))
 
-                        # print("Orderbook prices (1/):",
-                        #       '{0:.8f}'.format(1 / ab1[max_row]),
-                        #       '{0:.8f}'.format(1 / ab2[max_row]),
-                        #       '{0:.8f}'.format(1 / ab3[max_row]))
+                        print("Orderbook prices (1/):",
+                              '{0:.8f}'.format(1 / ab1[max_row]),
+                              '{0:.8f}'.format(1 / ab2[max_row]),
+                              '{0:.8f}'.format(1 / ab3[max_row]))
 
                         t_amount1 = self.lot_size
                         sy = self.maxi_pairs[max_row][0].decode('UTF-8')
                         t_side1 = self.pair_info[sy][1]
                         t_symbol1 = self.pair_info[sy][0]
-                        order1 = self.bx_client.order_market(symbol=t_symbol1,
-                                                       side=SIDE_BUY if t_side1 == "BUY" else SIDE_SELL,
-                                                       quantity=None if t_side1 == "BUY" else t_amount1,
-                                                       quoteOrderQty=t_amount1 if t_side1 == "BUY" else None)
-                        # print(order1)
-                        executedQty_1 = round(float(order1['executedQty']), 8)
-                        cummulativeQuoteQty_1 = round(float(order1['cummulativeQuoteQty']), 8)
-                        t_amount2 = executedQty_1 if t_side1 == "BUY" else cummulativeQuoteQty_1
-                        # print(t_amount2)
-                        sy = self.maxi_pairs[max_row][1].decode('UTF-8')
-                        t_side2 = self.pair_info[sy][1]
-                        t_symbol2 = self.pair_info[sy][0]
-                        t_step_size2 = self.pair_info[sy][2]
-                        t_min_qt2 = self.pair_info[sy][3]
-                        t_amount2 = self.round_qty_with_step_size(t_amount2, t_step_size2) if t_side2 == "SELL" else t_amount2
-                        # print("Side,amount, minqt", t_side2, t_amount2, t_min_qt2, t_step_size2)
-                        order2 = self.bx_client.order_market(symbol=t_symbol2,
-                                                       side=SIDE_BUY if t_side2 == "BUY" else SIDE_SELL,
-                                                       quantity=None if t_side2 == "BUY" else t_amount2,
-                                                       quoteOrderQty=t_amount2 if t_side2 == "BUY" else None)
-                        # print(order2)
-                        executedQty_2 = round(float(order2['executedQty']), 8)
-                        cummulativeQuoteQty_2 = round(float(order2['cummulativeQuoteQty']), 8)
-                        t_amount3 = executedQty_2 if t_side2 == "BUY" else cummulativeQuoteQty_2
+                        t_step_size1 = self.pair_info[sy][2]
+                        t_amount_mod_1 = self.round_qty_with_step_size(t_amount1 * ab1[max_row], t_step_size1, 1)
+                        t_price1 = self.price[self.maxi_pairs[max_row][0].decode('UTF-8')]
+                        print(t_price1)
+                        order1 = self.bx_client.order_limit(symbol=t_symbol1,
+                                                            price=t_price1,
+                                                            side=SIDE_BUY,
+                                                            quantity=t_amount_mod_1,
+                                                            timeInForce=TIME_IN_FORCE_IOC)
+                        print(order1)
+                        if order1['status'] != 'EXPIRED':
+                            executedQty_1 = round(float(order1['executedQty']), 8)
+                            cummulativeQuoteQty_1 = round(float(order1['cummulativeQuoteQty']), 8)
+                            t_amount2 = executedQty_1 if t_side1 == "BUY" else cummulativeQuoteQty_1
+                            # print(t_amount2)
+                            sy = self.maxi_pairs[max_row][1].decode('UTF-8')
+                            t_side2 = self.pair_info[sy][1]
+                            t_symbol2 = self.pair_info[sy][0]
+                            t_step_size2 = self.pair_info[sy][2]
+                            t_min_qt2 = self.pair_info[sy][3]
+                            t_amount2 = self.round_qty_with_step_size(t_amount2, t_step_size2) if t_side2 == "SELL" else t_amount2
+                            # print("Side,amount, minqt", t_side2, t_amount2, t_min_qt2, t_step_size2)
+                            order2 = self.bx_client.order_market(symbol=t_symbol2,
+                                                           side=SIDE_BUY if t_side2 == "BUY" else SIDE_SELL,
+                                                           quantity=None if t_side2 == "BUY" else t_amount2,
+                                                           quoteOrderQty=t_amount2 if t_side2 == "BUY" else None)
+                            # print(order2)
+                            executedQty_2 = round(float(order2['executedQty']), 8)
+                            cummulativeQuoteQty_2 = round(float(order2['cummulativeQuoteQty']), 8)
+                            t_amount3 = executedQty_2 if t_side2 == "BUY" else cummulativeQuoteQty_2
 
-                        # print(t_amount3)
-                        sy = self.maxi_pairs[max_row][2].decode('UTF-8')
-                        t_side3 = self.pair_info[sy][1]
-                        t_symbol3 = self.pair_info[sy][0]
-                        t_step_size3 = self.pair_info[sy][2]
-                        t_min_qt3 = self.pair_info[sy][3]
-                        t_amount3 = self.round_qty_with_step_size(t_amount3, t_step_size3) if t_side3 == "SELL" else t_amount3
-                        # print("Side,amount, minqt", t_side3, t_amount3, t_min_qt3, t_step_size3)
+                            # print(t_amount3)
+                            sy = self.maxi_pairs[max_row][2].decode('UTF-8')
+                            t_side3 = self.pair_info[sy][1]
+                            t_symbol3 = self.pair_info[sy][0]
+                            t_step_size3 = self.pair_info[sy][2]
+                            t_min_qt3 = self.pair_info[sy][3]
+                            t_amount3 = self.round_qty_with_step_size(t_amount3, t_step_size3) if t_side3 == "SELL" else t_amount3
+                            # print("Side,amount, minqt", t_side3, t_amount3, t_min_qt3, t_step_size3)
 
-                        order3 = self.bx_client.order_market(symbol=t_symbol3,
-                                                       side=SIDE_BUY if t_side3 == "BUY" else SIDE_SELL,
-                                                   quantity=None if t_side3 == "BUY" else t_amount3,
-                                                   quoteOrderQty=t_amount3 if t_side3 == "BUY" else None)
-                        # print(order3)
+                            order3 = self.bx_client.order_market(symbol=t_symbol3,
+                                                           side=SIDE_BUY if t_side3 == "BUY" else SIDE_SELL,
+                                                       quantity=None if t_side3 == "BUY" else t_amount3,
+                                                       quoteOrderQty=t_amount3 if t_side3 == "BUY" else None)
+                            # print(order3)
 
-                        p1 = round(float(order1['fills'][0]['price']),8)
-                        p2 = round(float(order2['fills'][0]['price']),8)
-                        p3 = round(float(order3['fills'][0]['price']),8)
+                            p1 = round(float(order1['fills'][0]['price']),8)
+                            p2 = round(float(order2['fills'][0]['price']),8)
+                            p3 = round(float(order3['fills'][0]['price']),8)
 
-                        if t_side1 == "BUY":
-                            p1 = 1 / p1
-                        if t_side2 == "BUY":
-                            p2 = 1 / p2
-                        if t_side3 == "BUY":
-                            p3 = 1 / p3
+                            if t_side1 == "BUY":
+                                p1 = 1 / p1
+                            if t_side2 == "BUY":
+                                p2 = 1 / p2
+                            if t_side3 == "BUY":
+                                p3 = 1 / p3
 
-                        print("Traded prices:   ", p1, p2, p3, round(p1 * p2 * p3, 8))
+                            print("Traded prices:   ", p1, p2, p3, round(p1 * p2 * p3, 8))
 
-                        self.print_estimated_amount()
-                        time.sleep(8)
+                            self.print_estimated_amount()
+                            time.sleep(8)
+                        else:
+                            print("Start price failed:")
                         trade_in_progress = False
 
 
