@@ -1,31 +1,24 @@
 # note for install external server
 # sudo apt update
 # sudo apt install python3 python3-pip
-# pip install pandas
 # pip install numpy
 # pip install python-binance
-# pip install networkx
 
 import sys
 from decimal import *
-# import math
 import numpy as np
-# import random
-# import textwrap
-
 import time
 from datetime import datetime
-
 import asyncio
-import multiprocessing as mp
-from multiprocessing import shared_memory, Process, Lock
+
+from multiprocessing import shared_memory, Lock, Pool, cpu_count
 lock = Lock()
 
 # Binanace
 from binance import AsyncClient, BinanceSocketManager, Client
 from binance.enums import *
 import requests
-
+import pickle
 # Global variables for multi commication
 
 class narbitrage_mp(object):
@@ -36,10 +29,11 @@ class narbitrage_mp(object):
         self.mpi = str(self.process) + "/" + str(self.cores) + " core ->"
         print(self.mpi, "starts.")
 
+        self.load_triangles = True
         self.start_symbol = 'USDT'
         self.symbols_no = 1000  # over 1000 it is max
         self.lot_size = 50  # USDor start symbol
-        self.spread = 0.12 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
+        self.spread = 0.075 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
         self.tick_modifier1 = 0
         self.tick_modifier2 = 0
         self.tick_modifier3 = 0
@@ -77,6 +71,53 @@ class narbitrage_mp(object):
                         'SXP', 'T', 'THETA', 'TKO', 'TLM', 'TRB', 'TRX', 'TRY', 'TUSD', 'UNFI', 'UNI', 'USDC',
                         'USTC', 'VET', 'VGX', 'VIDT', 'VOXEL', 'WAVES', 'WBTC', 'WIN', 'WING', 'WNXM',
                         'WOO', 'WTC', 'XLM', 'XMR', 'XRP', 'XTZ', 'YFI', 'YFII', 'YGG', 'ZEC', 'ZIL', 'ZRX']
+        #
+        # self.symbols = ['1INCH', 'AAVE', 'ACA', 'ACH', 'ACM', 'ADA', 'ADX', 'AE', 'AERGO', 'AGI', 'AGIX', 'AGLD',
+        #                 'AION', 'AKRO', 'ALCX', 'ALGO', 'ALICE', 'ALPACA', 'ALPHA', 'ALPINE', 'AMB', 'AMP', 'ANC',
+        #                 'ANKR', 'ANT', 'ANY', 'APE', 'API3', 'APPC', 'AR', 'ARDR', 'ARK', 'ARN', 'ARPA', 'ASR', 'AST',
+        #                 'ASTR', 'ATA', 'ATM', 'ATOM', 'AUCTION', 'AUD', 'AUDIO', 'AUTO', 'AVA', 'AVAX', 'AXS', 'BADGER',
+        #                 'BAKE', 'BAL', 'BAND', 'BAR', 'BAT', 'BCC', 'BCD', 'BCH', 'BCHA', 'BCHABC', 'BCHSV', 'BCN',
+        #                 'BCPT', 'BDOT', 'BEAM', 'BEAR', 'BEL', 'BETA', 'BETH', 'BGBP', 'BICO', 'BIDR', 'BIFI', 'BKRW',
+        #                 'BLZ', 'BNB', 'BNBBEAR', 'BNBBULL', 'BNT', 'BNX', 'BOND', 'BOT', 'BQX', 'BRD', 'BRL', 'BSW',
+        #                 'BTC', 'BTCB', 'BTCST', 'BTG', 'BTS', 'BTT', 'BTTC', 'BULL', 'BURGER', 'BUSD', 'BVND', 'BZRX',
+        #                 'C98', 'CAKE', 'CDT', 'CELO', 'CELR', 'CFX', 'CHAT', 'CHESS', 'CHR', 'CHZ', 'CITY', 'CKB',
+        #                 'CLOAK', 'CLV', 'CMT', 'CND', 'COCOS', 'COMP', 'COS', 'COTI', 'COVER', 'CREAM', 'CRV', 'CTK',
+        #                 'CTSI', 'CTXC', 'CVC', 'CVP', 'CVX', 'DAI', 'DAR', 'DASH', 'DATA', 'DCR', 'DEGO', 'DENT',
+        #                 'DEXE', 'DF', 'DGB', 'DGD', 'DIA', 'DLT', 'DNT', 'DOCK', 'DODO', 'DOGE', 'DOT', 'DREP', 'DUSK',
+        #                 'DYDX', 'EASY', 'EDO', 'EGLD', 'ELF', 'ENG', 'ENJ', 'ENS', 'EOS', 'EOSBEAR', 'EOSBULL', 'EPS',
+        #                 'EPX', 'ERD', 'ERN', 'ETC', 'ETH', 'ETHBEAR', 'ETHBULL', 'EUR', 'EVX', 'EZ', 'FARM', 'FET',
+        #                 'FIDA', 'FIL', 'FIO', 'FIRO', 'FIS', 'FLM', 'FLOW', 'FLUX', 'FOR', 'FORTH', 'FRONT', 'FTM',
+        #                 'FTT', 'FUEL', 'FUN', 'FXS', 'GAL', 'GALA', 'GAS', 'GBP', 'GHST', 'GLM', 'GLMR', 'GMT', 'GNO',
+        #                 'GNT', 'GO', 'GRS', 'GRT', 'GTC', 'GTO', 'GVT', 'GXS', 'HARD', 'HBAR', 'HC', 'HEGIC', 'HIGH',
+        #                 'HIVE', 'HNT', 'HOT', 'HSR', 'ICN', 'ICP', 'ICX', 'IDEX', 'IDRT', 'ILV', 'IMX', 'INJ', 'INS',
+        #                 'IOST', 'IOTA', 'IOTX', 'IQ', 'IRIS', 'JASMY', 'JOE', 'JST', 'JUV', 'KAVA', 'KDA', 'KEEP',
+        #                 'KEY', 'KLAY', 'KMD', 'KNC', 'KP3R', 'KSM', 'LAZIO', 'LDO', 'LEND', 'LEVER', 'LINA', 'LINK',
+        #                 'LIT', 'LOKA', 'LOOM', 'LPT', 'LRC', 'LSK', 'LTC', 'LTO', 'LUN', 'LUNA', 'LUNC', 'MANA', 'MASK',
+        #                 'MATIC', 'MBL', 'MBOX', 'MC', 'MCO', 'MDA', 'MDT', 'MDX', 'MFT', 'MINA', 'MIR', 'MITH', 'MKR',
+        #                 'MLN', 'MOB', 'MOD', 'MOVR', 'MTH', 'MTL', 'MULTI', 'NANO', 'NAS', 'NAV', 'NBS', 'NCASH',
+        #                 'NEAR', 'NEBL', 'NEO', 'NEXO', 'NGN', 'NKN', 'NMR', 'NPXS', 'NU', 'NULS', 'NXS', 'OAX', 'OCEAN',
+        #                 'OG', 'OGN', 'OM', 'OMG', 'ONE', 'ONG', 'ONT', 'OOKI', 'OP', 'ORN', 'OST', 'OXT', 'PAX', 'PAXG',
+        #                 'PEOPLE', 'PERL', 'PERP', 'PHA', 'PHB', 'PHX', 'PIVX', 'PLA', 'PNT', 'POA', 'POE', 'POLS',
+        #                 'POLY', 'POND', 'PORTO', 'POWR', 'PPT', 'PROM', 'PROS', 'PSG', 'PUNDIX', 'PYR', 'QI', 'QKC',
+        #                 'QLC', 'QNT', 'QSP', 'QTUM', 'QUICK', 'RAD', 'RAMP', 'RARE', 'RAY', 'RCN', 'RDN', 'REEF', 'REI',
+        #                 'REN', 'RENBTC', 'REP', 'REQ', 'RGT', 'RIF', 'RLC', 'RNDR', 'ROSE', 'RPX', 'RSR', 'RUB', 'RUNE',
+        #                 'RVN', 'SALT', 'SAND', 'SANTOS', 'SC', 'SCRT', 'SFP', 'SHIB', 'SKL', 'SKY', 'SLP', 'SNGLS',
+        #                 'SNM', 'SNT', 'SNX', 'SOL', 'SPARTA', 'SPELL', 'SRM', 'SSV', 'STEEM', 'STMX', 'STORJ', 'STORM',
+        #                 'STPT', 'STRAT', 'STRAX', 'STX', 'SUB', 'SUN', 'SUPER', 'SUSD', 'SUSHI', 'SWRV', 'SXP', 'SYS',
+        #                 'T', 'TCT', 'TFUEL', 'THETA', 'TKO', 'TLM', 'TNB', 'TNT', 'TOMO', 'TORN', 'TRB', 'TRIBE',
+        #                 'TRIG', 'TROY', 'TRU', 'TRX', 'TRY', 'TUSD', 'TUSDB', 'TVK', 'TWT', 'UAH', 'UFT', 'UMA', 'UNFI',
+        #                 'UNI', 'USDC', 'USDP', 'USDS', 'USDSB', 'USDT', 'UST', 'USTC', 'UTK', 'VAI', 'VEN', 'VET',
+        #                 'VGX', 'VIA', 'VIB', 'VIBE', 'VIDT', 'VITE', 'VOXEL', 'VTHO', 'WABI', 'WAN', 'WAVES', 'WAXP',
+        #                 'WBTC', 'WIN', 'WING', 'WINGS', 'WNXM', 'WOO', 'WPR', 'WRX', 'WTC', 'XEC', 'XEM', 'XLM', 'XMR',
+        #                 'XNO', 'XRP', 'XRPBEAR', 'XRPBULL', 'XTZ', 'XVG', 'XVS', 'XZC', 'YFI', 'YFII', 'YGG', 'YOYO',
+        #                 'ZAR', 'ZEC', 'ZEN', 'ZIL', 'ZRX']
+        
+        # ezeket előre teszem hogy minden szűkítésnél bent legyenű
+        axd = ['USDT', 'BTC', 'ETH']
+        for xd in axd:
+            self.symbols.remove(xd)
+        self.symbols = ['USDT', 'BTC', 'ETH'] + self.symbols
+
 
         ## off symbols
         self.off_symbols = ['BIDR', 'BUSD']
@@ -84,6 +125,8 @@ class narbitrage_mp(object):
             self.symbols.remove(osy)
 
         self.selected_symbols = self.symbols[:self.symbols_no]  ## kiválasztam amivel dolgozok szűkíthetem a kört
+        print(self.mpi, "Symbols:", len(self.selected_symbols))
+
 
         self.all_pairs = self.defa_all_pairs()
         self.selected_pairs = self.defa_selected_pairs()  ##a kiválasztott szimbólumokhoz kapcsolódó párokat kiválasztom
@@ -105,7 +148,7 @@ class narbitrage_mp(object):
         self.start_asyc_websocket()
 
     def print_info(self):
-        if self.process == 1:
+        if self.process == self.cores:
             print("Number of pairs:", len(self.selected_pairs))
             print("Spread:", self.spread * 100, "%")
             print("Price modifier 1 (orderbook, trade):", self.tick_modifier1, self.trade_tick_modifier1, " tick")
@@ -113,6 +156,7 @@ class narbitrage_mp(object):
             print("Price modifier 3 (orderbook, trade):", self.tick_modifier3, self.trade_tick_modifier3, " tick")
             print("Start symbol:", self.start_symbol)
             print("Lot size:", self.lot_size)
+            self.print_wallet()
 
     def get_slice_index(self, xlen, parts, slice_no):
         slices = np.array_split(list(np.arange(0, xlen)), parts)
@@ -123,50 +167,57 @@ class narbitrage_mp(object):
         return start, end
 
     def arb_matrix(self):
-        print(self.mpi, "Create arb martix")
-
-        maxi_tri = np.chararray((0, 4), itemsize=10)
-        # print(maxi_tri)
-
-        nrow = np.chararray((1, 4), itemsize=10)
-        for s1 in self.selected_symbols:
-            nrow[0][0] = self.start_symbol
-            nrow[0][3] = self.start_symbol
-            for s2 in self.selected_symbols:
-                nrow[0][1] = s1
-                nrow[0][2] = s2
-                maxi_tri = np.vstack([maxi_tri, nrow])
-
-        # kiszedem az egymás mellet ugyan olyanokat
-        del_row_id = []
-        for row_x in range(maxi_tri.shape[0]):
-            if maxi_tri[row_x][0] == maxi_tri[row_x][1] \
-                    or maxi_tri[row_x][1] == maxi_tri[row_x][2] \
-                    or maxi_tri[row_x][2] == maxi_tri[row_x][3]:
-                del_row_id.append(row_x)
-        maxi_tri = np.delete(maxi_tri, del_row_id, 0)
-
-        # felépítem a párokat
-        self.triangles = np.chararray((0, 3), itemsize=20)
-        prow = np.chararray((1, 3), itemsize=20)
-        for i in range(maxi_tri.shape[0]):
-            prow[0][0] = maxi_tri[i][0] + maxi_tri[i][1]
-            prow[0][1] = maxi_tri[i][1] + maxi_tri[i][2]
-            prow[0][2] = maxi_tri[i][2] + maxi_tri[i][3]
-            self.triangles = np.vstack([self.triangles, prow])
-
         all_pairs_way = []
         for sp in self.selected_pairs:
             all_pairs_way.append("".join([self.selected_pairs[sp][0], self.selected_pairs[sp][1]]))
             all_pairs_way.append("".join([self.selected_pairs[sp][1], self.selected_pairs[sp][0]]))
+        
+        if not self.load_triangles:
+            print(self.mpi, "Create arb martix")
+    
+            maxi_tri = np.chararray((0, 4), itemsize=10)
+            # print(maxi_tri)
+    
+            nrow = np.chararray((1, 4), itemsize=10)
+            for s1 in self.selected_symbols:
+                nrow[0][0] = self.start_symbol
+                nrow[0][3] = self.start_symbol
+                for s2 in self.selected_symbols:
+                    nrow[0][1] = s1
+                    nrow[0][2] = s2
+                    maxi_tri = np.vstack([maxi_tri, nrow])
+    
+            # kiszedem az egymás mellet ugyan olyanokat
+            del_row_id = []
+            for row_x in range(maxi_tri.shape[0]):
+                if maxi_tri[row_x][0] == maxi_tri[row_x][1] \
+                        or maxi_tri[row_x][1] == maxi_tri[row_x][2] \
+                        or maxi_tri[row_x][2] == maxi_tri[row_x][3]:
+                    del_row_id.append(row_x)
+            maxi_tri = np.delete(maxi_tri, del_row_id, 0)
+    
+            # felépítem a párokat
+            self.triangles = np.chararray((0, 3), itemsize=20)
+            prow = np.chararray((1, 3), itemsize=20)
+            for i in range(maxi_tri.shape[0]):
+                prow[0][0] = maxi_tri[i][0] + maxi_tri[i][1]
+                prow[0][1] = maxi_tri[i][1] + maxi_tri[i][2]
+                prow[0][2] = maxi_tri[i][2] + maxi_tri[i][3]
+                self.triangles = np.vstack([self.triangles, prow])
+    
+            ## kitörlöm azokat a kombinációkat amelyek nem is léteznek
+            del_index = []
+            for row_x in range(self.triangles.shape[0]):
+                for col_x in range(3):
+                    if self.triangles[row_x][col_x].decode('UTF-8') not in all_pairs_way:
+                        del_index.append(row_x)
+            self.triangles = np.delete(self.triangles, del_index, 0)
 
-        ## kitörlöm azokat a kombinációkat amelyek nem is léteznek
-        del_index = []
-        for row_x in range(self.triangles.shape[0]):
-            for col_x in range(3):
-                if self.triangles[row_x][col_x].decode('UTF-8') not in all_pairs_way:
-                    del_index.append(row_x)
-        self.triangles = np.delete(self.triangles, del_index, 0)
+            with open('triangles.npy', 'wb') as file:
+                np.save(file, self.triangles)
+        else:
+            with open('triangles.npy', 'rb') as file:
+                self.triangles = np.load(file)
         
         #processre szétdarabolom
         start_x, end_x = self.get_slice_index(self.triangles.shape[0], self.cores, self.process)
@@ -308,13 +359,12 @@ class narbitrage_mp(object):
 
     def print_wallet(self):
         self.account = self.bx_client.get_account()
-
-        estimated_amount = {}
+        self.wallet = {}
         for sesy in self.selected_symbols:
-            estimated_amount[sesy] = self.get_amount_by_symbol(sesy)
+            self.wallet[sesy] = self.get_amount_by_symbol(sesy)
 
-        # BNB külön kezelem
-        estimated_amount["BNB"] = self.get_amount_by_symbol("BNB")  # mivel erre nem lehet kereskedni ezt külön beteszem
+        # BNB külön kezelem mert nincs benne a selected symbolsban
+        self.wallet["BNB"] = self.get_amount_by_symbol("BNB")  # mivel erre nem lehet kereskedni ezt külön beteszem
         bnbusdt = self.get_BNBUSDT()
         bnbbtc = self.get_BNBBTC()
         self.price["BNBUSDT"] = bnbusdt
@@ -328,8 +378,8 @@ class narbitrage_mp(object):
         total_in_usdt = 0
         total_in_btc = 0
 
-        for ea in estimated_amount:
-            if estimated_amount[ea] != 0:
+        for ea in self.wallet:
+            if self.wallet[ea] != 0:
                 if ea == 'USDT':
                     price_usdt = 1
                 else:
@@ -344,12 +394,12 @@ class narbitrage_mp(object):
                     prc2 = 0 if self.price["BTC" + ea] == 1 else 1 / self.price["BTC" + ea]
                     price_btc = prc1 if ea + "BTC" in self.selected_pairs else prc2
 
-                symbol_value_in_usdt = round(estimated_amount[ea] * price_usdt, 3)
-                symbol_value_in_btc = round(estimated_amount[ea] * price_btc, 8)
+                symbol_value_in_usdt = round(self.wallet[ea] * price_usdt, 3)
+                symbol_value_in_btc = round(self.wallet[ea] * price_btc, 8)
                 total_in_usdt += symbol_value_in_usdt
                 total_in_btc += symbol_value_in_btc
                 eap = ea + "     "
-                amount = '{0:.8f}'.format(estimated_amount[ea]) + "                    "
+                amount = '{0:.8f}'.format(self.wallet[ea]) + "                    "
                 vusdt = '{0:.2f}'.format(symbol_value_in_usdt) + "                   "
                 vbtc = '{0:.8f}'.format(symbol_value_in_btc) + "                   "
                 print(" ", eap[0:5], amount[0:15], vusdt[0:10], vbtc[0:10], )
@@ -373,21 +423,19 @@ class narbitrage_mp(object):
         loop.close()
 
     async def asyc_websocket(self):
-        ### ezek nem közösek !!!!!
-        client = await AsyncClient.create()
-        bm = BinanceSocketManager(client)
-
         i_socket_list = []
         for sp in tuple(self.selected_pairs.keys()):
             base_asset = self.pai[sp]['base']
             quote_asset = self.pai[sp]['quote']
             
-            if self.isin_triangles(base_asset + quote_asset) or  self.isin_triangles(quote_asset + base_asset):
+            if self.isin_triangles(base_asset + quote_asset) or self.isin_triangles(quote_asset + base_asset):
                 i_socket_list.append(sp.lower() + '@bookTicker')
-
+        time.sleep(.5 * self.process)
         print(self.mpi, 'Number of sockets:', len(i_socket_list))
+        client = await AsyncClient.create()
+        bm = BinanceSocketManager(client)
         ts = bm.multiplex_socket(i_socket_list)
-        # then start receiving messages
+
         async with ts as tscm:
             while True:
                 res = await tscm.recv()
@@ -430,9 +478,9 @@ class narbitrage_mp(object):
                 profit = self.ab1[max_row] * self.ab2[max_row] * self.ab3[max_row] - (self.spread * 3)
                 # self.max_profit = max(self.max_profit, profit)
 
-                # self.calculate_count += 1
-                # if self.calculate_count % 100000 == 0:
-                #     print(self.mpi, self.calculate_count)
+                self.calculate_count += 1
+                if self.calculate_count % 25000 == 0:
+                    print(self.mpi, self.calculate_count, profit)
                 #     self.max_profit = 0
 
                 sy1 = self.triangles[max_row][0].decode('UTF-8')
@@ -451,6 +499,8 @@ class narbitrage_mp(object):
                     lock.release()
                     existing_shm.close()
                     
+                    self.last_arb = arb_str
+                    
                     cp1 = cpx1 = self.ab1[max_row]
                     cp2 = cpx2 = self.ab2[max_row]
                     cp3 = cpx3 = self.ab3[max_row]
@@ -467,9 +517,9 @@ class narbitrage_mp(object):
                     #     cpx3 = 1 / cpx3
                     #
                     # est_profit = cp1 * cp2 * cp3
-
-                    self.last_arb = arb_str
-
+                    #
+                    #
+                    #
                     # print("")
                     # print("")
                     # print("Start trade:                    ", sy1, '      ',
@@ -496,21 +546,19 @@ class narbitrage_mp(object):
                     #       '               {0:.8f}'.format(1 / sp1)[-18:],
                     #       '               {0:.8f}'.format(1 / sp2)[-18:],
                     #       '               {0:.8f}'.format(1 / sp3)[-18:])
-
                     
                     if 1 == 1:
                         
                         t_symbol1 = self.pai[sy1]['orig_symbol']
+                        t_base1 = self.pai[sy1]['base']
+                        t_quote1 = self.pai[sy1]['quote']
                         t_step_size1 = self.pai[sy1]['step_size']
-                        t_min_qt1 = self.pai[sy1]['min_quote']
+                        # t_min_qt1 = self.pai[sy1]['min_quote']
                         t_ticksize = self.pai[sy1]['tick_size']
                         t_amount_mod_buy = self.round_qty_with_step_size(
                             self.lot_size / ((self.price[sy1] - (t_ticksize * self.trade_tick_modifier1))),
                             t_step_size1, 0)
                         t_amount1 = t_amount_mod_buy if t_side1 == "BUY" else self.lot_size
-    
-                        # roundv = len(str(self.price[sy1]).split('.')[1])
-    
                         t_price1 = self.price[sy1] - (t_ticksize * self.trade_tick_modifier1) \
                             if t_side1 == "BUY" else \
                             self.price[t_symbol1] + (t_ticksize * self.trade_tick_modifier1)
@@ -528,15 +576,23 @@ class narbitrage_mp(object):
                             if order1['status'] != 'EXPIRED':
                                 break
                         # print(order1)
+                        
                         if order1['status'] != 'EXPIRED':
                             executedQty_1 = round(float(order1['executedQty']), 8)
                             cummulativeQuoteQty_1 = round(float(order1['cummulativeQuoteQty']), 8)
-                            t_amount2 = executedQty_1 if t_side1 == "BUY" else cummulativeQuoteQty_1
+                            # t_amount2 = executedQty_1 if t_side1 == "BUY" else cummulativeQuoteQty_1
+                            if t_side1 == "BUY":
+                                self.wallet["".join([t_base1, t_quote1])] += executedQty_1
+                            else:
+                                self.wallet["".join([t_quote1, t_base1])] += cummulativeQuoteQty_1
+
                             t_symbol2 = self.pai[sy2]['orig_symbol']
+                            t_base2 = self.pai[t_symbol2['base']]
                             t_step_size2 = self.pai[sy2]['step_size']
                             t_min_qt2 = self.pai[sy2]['min_quote']
                             t_ticksize2 = self.pai[sy2]['tick_size']
-    
+
+                            t_amount2 = self.wallet[t_base2]
                             t_amount2 = self.round_qty_with_step_size(t_amount2,
                                                                       t_step_size2) if t_side2 == "SELL" else t_amount2
                             # print('2 symbol', t_symbol2, 'side', t_side2, 'quantity', t_amount2, 'minqt', t_min_qt2)
@@ -547,6 +603,10 @@ class narbitrage_mp(object):
                             executedQty_2 = round(float(order2['executedQty']), 8)
                             cummulativeQuoteQty_2 = round(float(order2['cummulativeQuoteQty']), 8)
                             t_amount3 = executedQty_2 if t_side2 == "BUY" else cummulativeQuoteQty_2
+                            if t_side1 == "BUY":
+                                self.wallet["".join([t_base1, t_quote1])] += t_amount2
+                            else:
+                                self.wallet["".join([t_quote1, t_base1])] += t_amount2
                             t_symbol3 = self.pai[sy3]['orig_symbol']
                             t_step_size3 = self.pai[sy3]['step_size']
                             t_min_qt3 = self.pai[sy3]['min_quote']
@@ -630,18 +690,20 @@ class narbitrage_mp(object):
 
 if __name__ == '__main__':
     
-    a = np.array([1])
-    shm = mp.shared_memory.SharedMemory(create=True, size=a.nbytes)
+    a = np.array([1], dtype=np.int64)
+    shm = shared_memory.SharedMemory(create=True, size=a.nbytes)
     # # Now create a NumPy array backed by shared memory
     np_array = np.ndarray(a.shape, dtype=np.int64, buffer=shm.buf)
     np_array[:] = a[:]  # Copy the original data into shared memory
     
-    used_cores = mp.cpu_count()
+    used_cores = cpu_count()
+    # used_cores = 1
+    
     params = []
     for x in range(used_cores):
         params.append([used_cores, x + 1, shm.name])
     n_arb = narbitrage_mp
-    xpool = mp.Pool(used_cores)
+    xpool = Pool(used_cores)
     res = xpool.map(n_arb, params)
 
     
