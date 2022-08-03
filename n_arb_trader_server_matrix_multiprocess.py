@@ -39,7 +39,7 @@ class narbitrage_mp(object):
         self.start_symbol = 'USDT'
         self.symbols_no = 1000  # over 1000 it is max
         self.lot_size = 50  # USDor start symbol
-        self.spread = 0.08 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
+        self.spread = 0.12 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
         self.tick_modifier1 = 0
         self.tick_modifier2 = 0
         self.tick_modifier3 = 0
@@ -506,7 +506,7 @@ class narbitrage_mp(object):
                         t_ticksize = self.pai[sy1]['tick_size']
                         t_amount_mod_buy = self.round_qty_with_step_size(
                             self.lot_size / ((self.price[sy1] - (t_ticksize * self.trade_tick_modifier1))),
-                            t_step_size1, 1)
+                            t_step_size1, 0)
                         t_amount1 = t_amount_mod_buy if t_side1 == "BUY" else self.lot_size
     
                         # roundv = len(str(self.price[sy1]).split('.')[1])
@@ -570,6 +570,13 @@ class narbitrage_mp(object):
                                 px2 = 1 / px2
                             if t_side3 == "BUY":
                                 px3 = 1 / px3
+
+                            if t_side1 == "BUY":
+                                cpx1 = 1 / cpx1
+                            if t_side2 == "BUY":
+                                cpx2 = 1 / cpx2
+                            if t_side3 == "BUY":
+                                cpx3 = 1 / cpx3
     
                             realised_profit = round(px1 * px2 * px3, 8)
     
