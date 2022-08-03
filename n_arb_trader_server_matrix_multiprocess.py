@@ -17,8 +17,9 @@ import time
 from datetime import datetime
 
 import asyncio
-from threading import Thread
 import multiprocessing as mp
+from multiprocessing import shared_memory, Process, Lock
+lock = Lock()
 
 # Binanace
 from binance import AsyncClient, BinanceSocketManager, Client
@@ -27,26 +28,23 @@ import requests
 
 # Global variables for multi commication
 
-trade_in_progress = False
-
-
-
 class narbitrage_mp(object):
     def __init__(self, prc_inf):
         self.cores = prc_inf[0]  # összesen hány process van
         self.process = prc_inf[1]  # én hanyadik process vagyok
+        self.shared_memory_name = prc_inf[2]  # én hanyadik process vagyok
         self.mpi = str(self.process) + "/" + str(self.cores) + " core ->"
         print(self.mpi, "starts.")
 
         self.start_symbol = 'USDT'
-        self.symbols_no = 1150  # over 1000 it is max
+        self.symbols_no = 1000  # over 1000 it is max
         self.lot_size = 50  # USDor start symbol
-        self.spread = 0.025 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
+        self.spread = 0.08 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
         self.tick_modifier1 = 0
-        self.tick_modifier2 = 5
-        self.tick_modifier3 = 5
+        self.tick_modifier2 = 0
+        self.tick_modifier3 = 0
 
-        self.trade_tick_modifier1 = -1  # ha - akkor az ordebooknál jobban akar venni, limit árat az orderbookhoz képestennyivel adja meg
+        self.trade_tick_modifier1 = 0  # ha - akkor az ordebooknál jobban akar venni, limit árat az orderbookhoz képestennyivel adja meg
         self.trade_tick_modifier2 = 0
         self.trade_tick_modifier3 = 0
         
@@ -55,7 +53,6 @@ class narbitrage_mp(object):
         self.ab3 = np.array([])
         self.calculate_count = 1
         
-        self.print_info()
         self.api_key = "DAqss9T987L0ruIbVEW9rBEFDD2sKxEKBvpvDVUJfdjijzqPqBgD8semkNF2I5Ul"
         self.api_secret = "3C1203CjVU3J0djfqG62QUSA2sFJJwWnHAmd7gd7t87OoOJJbx7NCnFV7PXx4Wpk"
         self.bx_client = Client(self.api_key, self.api_secret)
@@ -100,6 +97,7 @@ class narbitrage_mp(object):
 
         self.refresh_map = None
         self.triangles = None
+        self.print_info()
         self.arb_matrix()
         self.run_analys = False
         self.last_arb = ""
@@ -110,9 +108,9 @@ class narbitrage_mp(object):
         if self.process == 1:
             print("Number of pairs:", len(self.selected_pairs))
             print("Spread:", self.spread * 100, "%")
-            print("Price modifier 1:", self.tick_modifier1, " tick")
-            print("Price modifier 2:", self.tick_modifier2, " tick")
-            print("Price modifier 3:", self.tick_modifier3, " tick")
+            print("Price modifier 1 (orderbook, trade):", self.tick_modifier1, self.trade_tick_modifier1, " tick")
+            print("Price modifier 2 (orderbook, trade):", self.tick_modifier2, self.trade_tick_modifier2, " tick")
+            print("Price modifier 3 (orderbook, trade):", self.tick_modifier3, self.trade_tick_modifier3, " tick")
             print("Start symbol:", self.start_symbol)
             print("Lot size:", self.lot_size)
 
@@ -375,14 +373,16 @@ class narbitrage_mp(object):
         loop.close()
 
     async def asyc_websocket(self):
-        global trade_in_progress
         ### ezek nem közösek !!!!!
         client = await AsyncClient.create()
         bm = BinanceSocketManager(client)
 
         i_socket_list = []
         for sp in tuple(self.selected_pairs.keys()):
-            if self.isin_triangles(sp):
+            base_asset = self.pai[sp]['base']
+            quote_asset = self.pai[sp]['quote']
+            
+            if self.isin_triangles(base_asset + quote_asset) or  self.isin_triangles(quote_asset + base_asset):
                 i_socket_list.append(sp.lower() + '@bookTicker')
 
         print(self.mpi, 'Number of sockets:', len(i_socket_list))
@@ -424,16 +424,16 @@ class narbitrage_mp(object):
                 np.put(self.ab2, self.refresh_map[s2s1][1], round(1 / (ask + (self.tick_modifier2 * tick_size)), 8))
                 np.put(self.ab3, self.refresh_map[s2s1][2], round(1 / (ask + (self.tick_modifier3 * tick_size)), 8))
 
-
                 profit_array = np.multiply(np.multiply(self.ab1, self.ab2), self.ab3)
                 max_row = np.argmax(profit_array)
+                min_row = np.argmin(profit_array)
                 profit = self.ab1[max_row] * self.ab2[max_row] * self.ab3[max_row] - (self.spread * 3)
-                self.max_profit = max(self.max_profit, profit)
-                self.calculate_count += 1
+                # self.max_profit = max(self.max_profit, profit)
 
-                if self.calculate_count % 25000 == 0:
-                    print(self.mpi, self.calculate_count, self.max_profit)
-                    self.max_profit = 0
+                # self.calculate_count += 1
+                # if self.calculate_count % 100000 == 0:
+                #     print(self.mpi, self.calculate_count)
+                #     self.max_profit = 0
 
                 sy1 = self.triangles[max_row][0].decode('UTF-8')
                 sy2 = self.triangles[max_row][1].decode('UTF-8')
@@ -441,11 +441,16 @@ class narbitrage_mp(object):
 
                 arb_str = str([sy1, sy2, sy3])
 
-                if profit > 1:
-                    print(self.mpi, arb_str, profit)
+                existing_shm = shared_memory.SharedMemory(name=self.shared_memory_name)
+                np_array = np.ndarray((1,), dtype=np.int64, buffer=existing_shm.buf)
 
-                if 1==2 and profit > 1 and not trade_in_progress and self.last_arb != arb_str:
-                    trade_in_progress = True
+                if profit > 1 and np_array[0] == 1 and self.last_arb != arb_str:
+                    
+                    lock.acquire()
+                    np_array[0] = 0
+                    lock.release()
+                    existing_shm.close()
+                    
                     cp1 = cpx1 = self.ab1[max_row]
                     cp2 = cpx2 = self.ab2[max_row]
                     cp3 = cpx3 = self.ab3[max_row]
@@ -454,26 +459,27 @@ class narbitrage_mp(object):
                     t_side2 = self.pai[sy2]['side']
                     t_side3 = self.pai[sy3]['side']
 
-                    if t_side1 == "BUY":
-                        cpx1 = 1 / cpx1
-                    if t_side2 == "BUY":
-                        cpx2 = 1 / cpx2
-                    if t_side3 == "BUY":
-                        cpx3 = 1 / cpx3
+                    # if t_side1 == "BUY":
+                    #     cpx1 = 1 / cpx1
+                    # if t_side2 == "BUY":
+                    #     cpx2 = 1 / cpx2
+                    # if t_side3 == "BUY":
+                    #     cpx3 = 1 / cpx3
+                    #
+                    # est_profit = cp1 * cp2 * cp3
 
-                    est_profit = cp1 * cp2 * cp3
                     self.last_arb = arb_str
 
-                    print("")
-                    print("")
-                    print("Start trade:                    ", sy1, '      ',
-                          sy2, '    ',
-                          sy3, '              ')
-                    print("Estimated:             ",
-                          '               {0:.8f}'.format(cpx1)[-18:],
-                          '               {0:.8f}'.format(cpx2)[-18:],
-                          '               {0:.8f}'.format(cpx3)[-18:], ' ' * 11,
-                          '               {0:.8f}'.format(est_profit))
+                    # print("")
+                    # print("")
+                    # print("Start trade:                    ", sy1, '      ',
+                    #       sy2, '    ',
+                    #       sy3, '              ')
+                    # print("Estimated:             ",
+                    #       '               {0:.8f}'.format(cpx1)[-18:],
+                    #       '               {0:.8f}'.format(cpx2)[-18:],
+                    #       '               {0:.8f}'.format(cpx3)[-18:], ' ' * 11,
+                    #       '               {0:.8f}'.format(est_profit))
 
                     # sp1 egyenes
                     # spmx ha kell reciprok
@@ -491,126 +497,145 @@ class narbitrage_mp(object):
                     #       '               {0:.8f}'.format(1 / sp2)[-18:],
                     #       '               {0:.8f}'.format(1 / sp3)[-18:])
 
-                    t_symbol1 = self.pai[sy1]['orig_symbol']
-                    t_step_size1 = self.pai[sy1]['step_size']
-                    t_min_qt1 = self.pai[sy1]['min_quote']
-                    t_ticksize = self.pai[sy1]['tick_size']
-                    t_amount_mod_buy = self.round_qty_with_step_size(
-                        self.lot_size / ((self.price[sy1] - (t_ticksize * self.trade_tick_modifier1))),
-                        t_step_size1, 1)
-                    t_amount1 = t_amount_mod_buy if t_side1 == "BUY" else self.lot_size
-
-                    # roundv = len(str(self.price[sy1]).split('.')[1])
-
-                    t_price1 = self.price[sy1] - (t_ticksize * self.trade_tick_modifier1) \
-                        if t_side1 == "BUY" else \
-                        self.price[t_symbol1] + (t_ticksize * self.trade_tick_modifier1)
-
-                    # trade
-                    for trade_try in range(2):
-                        # print(trade_try, 'try, 1 symbol', t_symbol1, 'price', self.price[sy1], self.price[t_symbol1],
-                        #       't_price {0:.8f}'.format(t_price1), 'side', t_side1, 'quantity', t_amount1, 'minqt',
-                        #       t_min_qt1)
-                        order1 = self.bx_client.order_limit(symbol=t_symbol1,
-                                                            price='{0:.8f}'.format(t_price1),
-                                                            side=t_side1,
-                                                            quantity=t_amount1,
-                                                            timeInForce=TIME_IN_FORCE_IOC)
+                    
+                    if 1 == 1:
+                        
+                        t_symbol1 = self.pai[sy1]['orig_symbol']
+                        t_step_size1 = self.pai[sy1]['step_size']
+                        t_min_qt1 = self.pai[sy1]['min_quote']
+                        t_ticksize = self.pai[sy1]['tick_size']
+                        t_amount_mod_buy = self.round_qty_with_step_size(
+                            self.lot_size / ((self.price[sy1] - (t_ticksize * self.trade_tick_modifier1))),
+                            t_step_size1, 1)
+                        t_amount1 = t_amount_mod_buy if t_side1 == "BUY" else self.lot_size
+    
+                        # roundv = len(str(self.price[sy1]).split('.')[1])
+    
+                        t_price1 = self.price[sy1] - (t_ticksize * self.trade_tick_modifier1) \
+                            if t_side1 == "BUY" else \
+                            self.price[t_symbol1] + (t_ticksize * self.trade_tick_modifier1)
+    
+                        # trade
+                        for trade_try in range(2):
+                            # print(trade_try, 'try, 1 symbol', t_symbol1, 'price', self.price[sy1], self.price[t_symbol1],
+                            #       't_price {0:.8f}'.format(t_price1), 'side', t_side1, 'quantity', t_amount1, 'minqt',
+                            #       t_min_qt1)
+                            order1 = self.bx_client.order_limit(symbol=t_symbol1,
+                                                                price='{0:.8f}'.format(t_price1),
+                                                                side=t_side1,
+                                                                quantity=t_amount1,
+                                                                timeInForce=TIME_IN_FORCE_IOC)
+                            if order1['status'] != 'EXPIRED':
+                                break
+                        # print(order1)
                         if order1['status'] != 'EXPIRED':
-                            break
-                    # print(order1)
-                    if order1['status'] != 'EXPIRED':
-                        executedQty_1 = round(float(order1['executedQty']), 8)
-                        cummulativeQuoteQty_1 = round(float(order1['cummulativeQuoteQty']), 8)
-                        t_amount2 = executedQty_1 if t_side1 == "BUY" else cummulativeQuoteQty_1
-                        t_symbol2 = self.pai[sy2]['orig_symbol']
-                        t_step_size2 = self.pai[sy2]['step_size']
-                        t_min_qt2 = self.pai[sy2]['min_quote']
-                        t_ticksize2 = self.pai[sy2]['tick_size']
+                            executedQty_1 = round(float(order1['executedQty']), 8)
+                            cummulativeQuoteQty_1 = round(float(order1['cummulativeQuoteQty']), 8)
+                            t_amount2 = executedQty_1 if t_side1 == "BUY" else cummulativeQuoteQty_1
+                            t_symbol2 = self.pai[sy2]['orig_symbol']
+                            t_step_size2 = self.pai[sy2]['step_size']
+                            t_min_qt2 = self.pai[sy2]['min_quote']
+                            t_ticksize2 = self.pai[sy2]['tick_size']
+    
+                            t_amount2 = self.round_qty_with_step_size(t_amount2,
+                                                                      t_step_size2) if t_side2 == "SELL" else t_amount2
+                            # print('2 symbol', t_symbol2, 'side', t_side2, 'quantity', t_amount2, 'minqt', t_min_qt2)
+                            order2 = self.bx_client.order_market(symbol=t_symbol2,
+                                                                 side=SIDE_BUY if t_side2 == "BUY" else SIDE_SELL,
+                                                                 quantity=None if t_side2 == "BUY" else t_amount2,
+                                                                 quoteOrderQty=t_amount2 if t_side2 == "BUY" else None)
+                            executedQty_2 = round(float(order2['executedQty']), 8)
+                            cummulativeQuoteQty_2 = round(float(order2['cummulativeQuoteQty']), 8)
+                            t_amount3 = executedQty_2 if t_side2 == "BUY" else cummulativeQuoteQty_2
+                            t_symbol3 = self.pai[sy3]['orig_symbol']
+                            t_step_size3 = self.pai[sy3]['step_size']
+                            t_min_qt3 = self.pai[sy3]['min_quote']
+                            t_ticksize3 = self.pai[sy3]['tick_size']
+                            t_amount3 = self.round_qty_with_step_size(t_amount3,
+                                                                      t_step_size3) if t_side3 == "SELL" else t_amount3
+                            # print('3 symbol', t_symbol3, 'side', t_side3, 'quantity', t_amount3, 'minqt', t_min_qt3)
+                            order3 = self.bx_client.order_market(symbol=t_symbol3,
+                                                                 side=SIDE_BUY if t_side3 == "BUY" else SIDE_SELL,
+                                                                 quantity=None if t_side3 == "BUY" else t_amount3,
+                                                                 quoteOrderQty=t_amount3 if t_side3 == "BUY" else None)
+                            # print(order3)
+    
+                            px1 = p1 = round(float(order1['fills'][0]['price']), 8)
+                            px2 = p2 = round(float(order2['fills'][0]['price']), 8)
+                            px3 = p3 = round(float(order3['fills'][0]['price']), 8)
+    
+                            if t_side1 == "BUY":
+                                px1 = 1 / px1
+                            if t_side2 == "BUY":
+                                px2 = 1 / px2
+                            if t_side3 == "BUY":
+                                px3 = 1 / px3
+    
+                            realised_profit = round(px1 * px2 * px3, 8)
+    
+                            # print("Realised profit:       ",
+                            #       '               {0:.8f}'.format(px1)[-18:],
+                            #       '               {0:.8f}'.format(px2)[-18:],
+                            #       '               {0:.8f}'.format(px3)[-18:], ' ' * 12,
+                            #       '               {0:.8f}'.format(round(px1 * px2 * px3, 8)))
+    
+                            print("Realised:              ",
+                                  '               {0:.8f}'.format(p1)[-18:],
+                                  '               {0:.8f}'.format(p2)[-18:],
+                                  '               {0:.8f}'.format(p3)[-18:], ' ' * 12,
+                                  '               {0:.8f}'.format(realised_profit))
+    
+                            dif1 = cpx1 - p1 if t_side1 == "BUY" else p1 - cpx1
+                            dif2 = cpx2 - p2 if t_side2 == "BUY" else p2 - cpx2
+                            dif3 = cpx3 - p3 if t_side3 == "BUY" else p3 - cpx3
+    
+                            print("Dif result - est      :",
+                                  '               {0:.8f}'.format(dif1)[-18:],
+                                  '               {0:.8f}'.format(dif2)[-18:],
+                                  '               {0:.8f}'.format(dif3)[-18:])
+    
+                            print("Tick size:             ",
+                                  '               {0:.8f}'.format(self.pai[sy1]['tick_size'])[-18:],
+                                  '               {0:.8f}'.format(self.pai[sy2]['tick_size'])[-18:],
+                                  '               {0:.8f}'.format(self.pai[sy3]['tick_size'])[-18:])
+    
+                            print("Side:               ",
+                                  "              " + t_side1,
+                                  "              " + t_side2,
+                                  "              " + t_side3)
+    
+                            self.print_wallet()
+                            time.sleep(20)
+                        else:
+                            print("Start order failed.")
 
-                        t_amount2 = self.round_qty_with_step_size(t_amount2,
-                                                                  t_step_size2) if t_side2 == "SELL" else t_amount2
-                        # print('2 symbol', t_symbol2, 'side', t_side2, 'quantity', t_amount2, 'minqt', t_min_qt2)
-                        order2 = self.bx_client.order_market(symbol=t_symbol2,
-                                                             side=SIDE_BUY if t_side2 == "BUY" else SIDE_SELL,
-                                                             quantity=None if t_side2 == "BUY" else t_amount2,
-                                                             quoteOrderQty=t_amount2 if t_side2 == "BUY" else None)
-                        executedQty_2 = round(float(order2['executedQty']), 8)
-                        cummulativeQuoteQty_2 = round(float(order2['cummulativeQuoteQty']), 8)
-                        t_amount3 = executedQty_2 if t_side2 == "BUY" else cummulativeQuoteQty_2
-                        t_symbol3 = self.pai[sy3]['orig_symbol']
-                        t_step_size3 = self.pai[sy3]['step_size']
-                        t_min_qt3 = self.pai[sy3]['min_quote']
-                        t_ticksize3 = self.pai[sy3]['tick_size']
-                        t_amount3 = self.round_qty_with_step_size(t_amount3,
-                                                                  t_step_size3) if t_side3 == "SELL" else t_amount3
-                        # print('3 symbol', t_symbol3, 'side', t_side3, 'quantity', t_amount3, 'minqt', t_min_qt3)
-                        order3 = self.bx_client.order_market(symbol=t_symbol3,
-                                                             side=SIDE_BUY if t_side3 == "BUY" else SIDE_SELL,
-                                                             quantity=None if t_side3 == "BUY" else t_amount3,
-                                                             quoteOrderQty=t_amount3 if t_side3 == "BUY" else None)
-                        # print(order3)
-
-                        px1 = p1 = round(float(order1['fills'][0]['price']), 8)
-                        px2 = p2 = round(float(order2['fills'][0]['price']), 8)
-                        px3 = p3 = round(float(order3['fills'][0]['price']), 8)
-
-                        if t_side1 == "BUY":
-                            px1 = 1 / px1
-                        if t_side2 == "BUY":
-                            px2 = 1 / px2
-                        if t_side3 == "BUY":
-                            px3 = 1 / px3
-
-                        realised_profit = round(px1 * px2 * px3, 8)
-
-                        # print("Realised profit:       ",
-                        #       '               {0:.8f}'.format(px1)[-18:],
-                        #       '               {0:.8f}'.format(px2)[-18:],
-                        #       '               {0:.8f}'.format(px3)[-18:], ' ' * 12,
-                        #       '               {0:.8f}'.format(round(px1 * px2 * px3, 8)))
-
-                        print("Realised:              ",
-                              '               {0:.8f}'.format(p1)[-18:],
-                              '               {0:.8f}'.format(p2)[-18:],
-                              '               {0:.8f}'.format(p3)[-18:], ' ' * 12,
-                              '               {0:.8f}'.format(realised_profit))
-
-                        dif1 = cpx1 - p1 if t_side1 == "BUY" else p1 - cpx1
-                        dif2 = cpx2 - p2 if t_side2 == "BUY" else p2 - cpx2
-                        dif3 = cpx3 - p3 if t_side3 == "BUY" else p3 - cpx3
-
-                        print("Dif result - est      :",
-                              '               {0:.8f}'.format(dif1)[-18:],
-                              '               {0:.8f}'.format(dif2)[-18:],
-                              '               {0:.8f}'.format(dif3)[-18:])
-
-                        print("Tick size:             ",
-                              '               {0:.8f}'.format(self.pai[sy1]['tick_size'])[-18:],
-                              '               {0:.8f}'.format(self.pai[sy2]['tick_size'])[-18:],
-                              '               {0:.8f}'.format(self.pai[sy3]['tick_size'])[-18:])
-
-                        print("Side:               ",
-                              "              " + t_side1,
-                              "              " + t_side2,
-                              "              " + t_side3)
-
-                        self.print_wallet()
-                        time.sleep(20)
-                    else:
-                        print("Start order failed.")
-                        # trade_in_progress = False
-                    trade_in_progress = False
+                    existing_shm = shared_memory.SharedMemory(name=self.shared_memory_name)
+                    np_array = np.ndarray((1,), dtype=np.int64, buffer=existing_shm.buf)
+                    lock.acquire()
+                    np_array[0] = 1
+                    lock.release()
+                    existing_shm.close()
+                else:
+                    existing_shm.close()
 
         # ez sosem fog lefutni mert a szervernek nincs leállítási funkciója csak kilövöm éskész
         await client.close_connection()
 
-
-
 if __name__ == '__main__':
+    
+    a = np.array([1])
+    shm = mp.shared_memory.SharedMemory(create=True, size=a.nbytes)
+    # # Now create a NumPy array backed by shared memory
+    np_array = np.ndarray(a.shape, dtype=np.int64, buffer=shm.buf)
+    np_array[:] = a[:]  # Copy the original data into shared memory
+    
+    used_cores = mp.cpu_count()
+    params = []
+    for x in range(used_cores):
+        params.append([used_cores, x + 1, shm.name])
     n_arb = narbitrage_mp
-    xpool = mp.Pool(4)
-    res = xpool.map(n_arb, [[4, 1], [4, 2], [4, 3], [4, 4]])
+    xpool = mp.Pool(used_cores)
+    res = xpool.map(n_arb, params)
 
     
 
