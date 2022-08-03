@@ -18,13 +18,14 @@ from datetime import datetime
 
 import asyncio
 from threading import Thread
+import multiprocessing as mp
 
 # Binanace
 from binance import AsyncClient, BinanceSocketManager, Client
 from binance.enums import *
 import requests
 
-#Global variables for multi commication
+# Global variables for multi commication
 ab1 = np.array([])
 ab2 = np.array([])
 ab3 = np.array([])
@@ -32,10 +33,11 @@ last_arb = ""
 trade_in_progress = False
 calculate_count = 1
 
-class n_arbitrage:
 
-    def __init__(self):
-    
+class narbitrage_mp(object):
+    def __init__(self, prc_inf):
+        self.num_of_cores = prc_inf[0]  # összesen hány process van
+        self.process = prc_inf[1]  # én hanyadik vagyok
         self.start_symbol = 'USDT'
         self.symbols_no = 1150  # over 1000 it is max
         self.lot_size = 50  # USDor start symbol
@@ -43,11 +45,11 @@ class n_arbitrage:
         self.tick_modifier1 = 0
         self.tick_modifier2 = 5
         self.tick_modifier3 = 5
-        
+
         self.trade_tick_modifier1 = -1  # ha - akkor az ordebooknál jobban akar venni, limit árat az orderbookhoz képestennyivel adja meg
         self.trade_tick_modifier2 = 0
         self.trade_tick_modifier3 = 0
-        
+
         self.socket_thread = None
 
         self.api_key = "DAqss9T987L0ruIbVEW9rBEFDD2sKxEKBvpvDVUJfdjijzqPqBgD8semkNF2I5Ul"
@@ -77,17 +79,17 @@ class n_arbitrage:
                         'SXP', 'T', 'THETA', 'TKO', 'TLM', 'TRB', 'TRX', 'TRY', 'TUSD', 'UNFI', 'UNI', 'USDC',
                         'USTC', 'VET', 'VGX', 'VIDT', 'VOXEL', 'WAVES', 'WBTC', 'WIN', 'WING', 'WNXM',
                         'WOO', 'WTC', 'XLM', 'XMR', 'XRP', 'XTZ', 'YFI', 'YFII', 'YGG', 'ZEC', 'ZIL', 'ZRX']
-        
+
         ## off symbols
         self.off_symbols = ['BIDR', 'BUSD']
         for osy in self.off_symbols:
             self.symbols.remove(osy)
-        
+
         self.selected_symbols = self.symbols[:self.symbols_no]  ## kiválasztam amivel dolgozok szűkíthetem a kört
+
         self.all_pairs = self.defa_all_pairs()
         self.selected_pairs = self.defa_selected_pairs()  ##a kiválasztott szimbólumokhoz kapcsolódó párokat kiválasztom
         self.price = self.defa_price_dict()
-
         self.socket_list = self.defa_socket_list()
         self.pai = self.defa_pair_info()  # pair info
 
@@ -100,8 +102,8 @@ class n_arbitrage:
         self.arb_matrix()
         self.run_analys = False
         self.last_arb = ""
+        self.start_asyc_websocket()
 
-    # arb_matrix
     def arb_matrix(self):
         global ab1, ab2, ab3
         print("Create arb martix")
@@ -112,7 +114,7 @@ class n_arbitrage:
         nrow = np.chararray((1, 4), itemsize=10)
         for s1 in self.selected_symbols:
             nrow[0][0] = self.start_symbol
-            
+
             nrow[0][3] = self.start_symbol
             for s2 in self.selected_symbols:
                 nrow[0][1] = s1
@@ -185,8 +187,84 @@ class n_arbitrage:
         ab2 = np.full(self.triangles.shape[0], 0.00000000, dtype=float)
         ab3 = np.full(self.triangles.shape[0], 0.00000000, dtype=float)
 
-
         print("Created arb martix shape:", self.triangles.shape)
+
+    def get_account(self):
+        return self.bx_client.get_account()
+
+    def get_exchange_info(self):
+        return self.bx_client.get_exchange_info()
+
+    def defa_all_pairs(self):
+        i_all_pairs = []
+        for sy in self.exchange_info['symbols']:
+            i_all_pairs.append(sy['symbol'])
+        return i_all_pairs
+
+    def defa_selected_pairs(self):
+        i_selected_pairs = {}
+        for si1 in self.selected_symbols:
+            for si2 in self.selected_symbols:
+                if si1 + si2 in self.all_pairs and \
+                        self.get_symbol_info(si1 + si2)['status'] == 'TRADING' and \
+                        "MARKET" in self.get_symbol_info(si1 + si2)['orderTypes']:
+                    i_selected_pairs[si1 + si2] = [si1, si2]
+        return i_selected_pairs
+
+    def get_symbol_info(self, symbol):
+        for item in self.exchange_info['symbols']:
+            if item['symbol'] == symbol.upper():
+                return item
+        return None
+
+    def defa_price_dict(self):
+        i_selected_pairs = {}
+        for si1 in self.selected_symbols:
+            for si2 in self.selected_symbols:
+                i_selected_pairs["".join([si1, si2])] = 1.0
+                i_selected_pairs["".join([si2, si1])] = 1.0
+        return i_selected_pairs
+
+    def defa_pair_info(self):
+        # ez egy hogyan, miről, mire megyek katalógus
+        pair_info = {}
+        for si1 in self.selected_symbols:
+            for si2 in self.selected_symbols:
+                if si1 + si2 in self.all_pairs:
+                    filters = self.get_symbol_info(si1 + si2)['filters'][2]
+                    base = self.get_symbol_info(si1 + si2)['baseAsset']
+                    quot = self.get_symbol_info(si1 + si2)['quoteAsset']
+                    step_size = float(filters['stepSize'])
+                    ticksize = float(self.get_symbol_info(si1 + si2)['filters'][0]['tickSize'])
+                    min_qty = float(filters['minQty'])
+                    data_sell = {'orig_symbol': si1 + si2,
+                                 'side': 'SELL',
+                                 'step_size': step_size,
+                                 'min_quote': min_qty,
+                                 'base': base,
+                                 'quote': quot,
+                                 'tick_size': ticksize
+                                 }
+
+                    data_buy = {'orig_symbol': si1 + si2,
+                                'side': 'BUY',
+                                'step_size': step_size,
+                                'min_quote': min_qty,
+                                'base': base,
+                                'quote': quot,
+                                'tick_size': ticksize
+                                }
+
+                    pair_info[si1 + si2] = data_sell
+                    pair_info[si2 + si1] = data_buy
+
+        return pair_info
+
+    def defa_socket_list(self):
+        i_socket_list = []
+        for sp in tuple(self.selected_pairs.keys()):
+            i_socket_list.append(sp.lower() + '@bookTicker')
+        return i_socket_list
 
     def isin_triangles(self, what):
         what = str(what)
@@ -196,22 +274,6 @@ class n_arbitrage:
                     return True
         return False
 
-    async def open_binance_client(self):
-        self.b_client = await AsyncClient.create(self.api_key, self.api_secret)
-
-    async def close_binance_client(self):
-        await self.b_client.close_connection()
-
-    async def _get_account(self):
-        await self.open_binance_client()
-        res = await self.b_client.get_account()
-        await self.close_binance_client()
-        return res
-
-    def get_account(self):
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(self._get_account())
-
     def get_BNBUSDT(self):
         res = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT")
         return float(res.json()["price"])
@@ -219,22 +281,6 @@ class n_arbitrage:
     def get_BNBBTC(self):
         res = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=BNBBTC")
         return float(res.json()["price"])
-
-    async def _get_exchange_info(self):
-        await self.open_binance_client()
-        res = await self.b_client.get_exchange_info()
-        await self.close_binance_client()
-        return res
-
-    def get_exchange_info(self):
-        loop = asyncio.get_event_loop()
-        return loop.run_until_complete(self._get_exchange_info())
-
-    def get_symbol_info(self, symbol):
-        for item in self.exchange_info['symbols']:
-            if item['symbol'] == symbol.upper():
-                return item
-        return None
 
     def get_amount_by_symbol(self, symbol):
         for i_i in self.account['balances']:
@@ -250,7 +296,7 @@ class n_arbitrage:
             estimated_amount[sesy] = self.get_amount_by_symbol(sesy)
 
         # BNB külön kezelem
-        estimated_amount["BNB"] = self.get_amount_by_symbol("BNB") # mivel erre nem lehet kereskedni ezt külön beteszem
+        estimated_amount["BNB"] = self.get_amount_by_symbol("BNB")  # mivel erre nem lehet kereskedni ezt külön beteszem
         bnbusdt = self.get_BNBUSDT()
         bnbbtc = self.get_BNBBTC()
         self.price["BNBUSDT"] = bnbusdt
@@ -288,7 +334,7 @@ class n_arbitrage:
                 amount = '{0:.8f}'.format(estimated_amount[ea]) + "                    "
                 vusdt = '{0:.2f}'.format(symbol_value_in_usdt) + "                   "
                 vbtc = '{0:.8f}'.format(symbol_value_in_btc) + "                   "
-                print(" ", eap[0:5], amount[0:15], vusdt[0:10], vbtc[0:10],)
+                print(" ", eap[0:5], amount[0:15], vusdt[0:10], vbtc[0:10], )
 
         total_usdtstr = '{0:.2f}'.format(total_in_usdt) + "                                  "
         total_btcstr = '{0:.8f}'.format(total_in_btc) + "                                  "
@@ -296,92 +342,24 @@ class n_arbitrage:
         print("________________________________________________")
         print("Total:                 ", total_usdtstr[:10], total_btcstr[:10])
 
-    # def get_estimated_amount(self):
-    #     estimated_amount = {}
-    #     for sesy in self.selected_symbols:
-    #         estimated_amount[sesy] = self.get_amount_by_symbol(sesy)
-    #     estimated_amount["BNB"] = self.get_amount_by_symbol("BNB")
-    #     return estimated_amount
-
-    def defa_pair_info(self):
-        # ez egy hogyan, miről, mire megyek katalógus
-        pair_info = {}
-        for si1 in self.selected_symbols:
-            for si2 in self.selected_symbols:
-                if si1 + si2 in self.all_pairs:
-                    filters = self.get_symbol_info(si1 + si2)['filters'][2]
-                    base = self.get_symbol_info(si1 + si2)['baseAsset']
-                    quot = self.get_symbol_info(si1 + si2)['quoteAsset']
-                    step_size = float(filters['stepSize'])
-                    ticksize = float(self.get_symbol_info(si1 + si2)['filters'][0]['tickSize'])
-                    min_qty = float(filters['minQty'])
-                    data_sell = {'orig_symbol': si1 + si2,
-                                 'side': 'SELL',
-                                 'step_size': step_size,
-                                 'min_quote': min_qty,
-                                 'base': base,
-                                 'quote': quot,
-                                 'tick_size': ticksize
-                                 }
-                    
-                    data_buy = {'orig_symbol': si1 + si2,
-                                'side': 'BUY',
-                                'step_size': step_size,
-                                'min_quote': min_qty,
-                                'base': base,
-                                'quote': quot,
-                                 'tick_size': ticksize
-                                }
-                    
-                    pair_info[si1 + si2] = data_sell
-                    pair_info[si2 + si1] = data_buy
-                    
-        return pair_info
-
-    def defa_all_pairs(self):
-        i_all_pairs = []
-        for sy in self.exchange_info['symbols']:
-            i_all_pairs.append(sy['symbol'])
-        return i_all_pairs
-
-    def defa_socket_list(self):
-        i_socket_list = []
-        for sp in tuple(self.selected_pairs.keys()):
-            i_socket_list.append(sp.lower() + '@bookTicker')
-        return i_socket_list
-
-    def defa_price_dict(self):
-        i_selected_pairs = {}
-        for si1 in self.selected_symbols:
-            for si2 in self.selected_symbols:
-                i_selected_pairs["".join([si1, si2])] = 1.0
-                i_selected_pairs["".join([si2, si1])] = 1.0
-        return i_selected_pairs
-
-    def defa_selected_pairs(self):
-        i_selected_pairs = {}
-        for si1 in self.selected_symbols:
-            for si2 in self.selected_symbols:
-                if si1 + si2 in self.all_pairs and \
-                        self.get_symbol_info(si1 + si2)['status'] == 'TRADING' and \
-                        "MARKET" in self.get_symbol_info(si1 + si2)['orderTypes']:
-                    i_selected_pairs[si1 + si2] = [si1, si2]
-        return i_selected_pairs
-
     def round_qty_with_step_size(self, quantity, step_size, reduce=0):
         reduce = Decimal(reduce * step_size)  # ennyi darabbal visszaveszi
         quantity = Decimal(str(quantity))
         return round(float(quantity - quantity % Decimal(str(step_size)) - reduce), 8)
 
-    def start(self):
-        self.socket_thread = Thread(target=self.start_asyc_websocket, daemon=True)
-        self.socket_thread.start()
+    def start_asyc_websocket(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        loop.run_until_complete(self.asyc_websocket())
+        loop.close()
 
     async def asyc_websocket(self):
         global ab1, ab2, ab3, last_arb, trade_in_progress, calculate_count
+        ### ezek nem közösek !!!!!
         client = await AsyncClient.create()
         bm = BinanceSocketManager(client)
-        
+
         i_socket_list = []
         for sp in tuple(self.selected_pairs.keys()):
             if self.isin_triangles(sp):
@@ -393,8 +371,8 @@ class n_arbitrage:
         async with ts as tscm:
             while True:
                 res = await tscm.recv()
-                # print(res)
-    
+                print(self.process, res)
+
                 # socker data
 
                 s1 = self.selected_pairs[res['data']['s']][0]
@@ -402,7 +380,7 @@ class n_arbitrage:
                 # print(res['data']['s'], s1, s2)
                 s1s2 = "".join([s1, s2])
                 s2s1 = "".join([s2, s1])
-                
+
                 tick_size = self.pai[s1s2]['tick_size']
 
                 bid = round(float(res['data']['b']), 8)
@@ -427,21 +405,21 @@ class n_arbitrage:
                 np.put(ab3, self.refresh_map[s2s1][2], round(1 / (ask + (self.tick_modifier3 * tick_size)), 8))
 
                 if self.run_analys:
-                    
+
                     profit_array = np.multiply(np.multiply(ab1, ab2), ab3)
                     max_row = np.argmax(profit_array)
                     profit = ab1[max_row] * ab2[max_row] * ab3[max_row] - (self.spread * 3)
                     calculate_count += 1
 
                     if calculate_count % 25000 == 0:
-                        print("000000000000000000"[:int(calculate_count/25000)], " \r", end="")
+                        print("000000000000000000"[:int(calculate_count / 25000)], " \r", end="")
 
                     sy1 = self.triangles[max_row][0].decode('UTF-8')
                     sy2 = self.triangles[max_row][1].decode('UTF-8')
                     sy3 = self.triangles[max_row][2].decode('UTF-8')
 
                     arb_str = str([sy1, sy2, sy3])
-                    
+
                     # if profit > 1:
                     #     print(arb_str, profit)
 
@@ -461,10 +439,10 @@ class n_arbitrage:
                             cpx2 = 1 / cpx2
                         if t_side3 == "BUY":
                             cpx3 = 1 / cpx3
-                        
+
                         est_profit = cp1 * cp2 * cp3
                         last_arb = arb_str
-                        
+
                         print("")
                         print("")
                         print("Start trade:                    ", sy1, '      ',
@@ -481,7 +459,7 @@ class n_arbitrage:
                         # sp1 = self.price[sy1]
                         # sp2 = self.price[sy2]
                         # sp3 = self.price[sy3]
-                        
+
                         # print("Orderbook prices:      ",
                         #       '               {0:.8f}'.format(sp1)[-18:],
                         #       '               {0:.8f}'.format(sp2)[-18:],
@@ -491,20 +469,22 @@ class n_arbitrage:
                         #       '               {0:.8f}'.format(1 / sp1)[-18:],
                         #       '               {0:.8f}'.format(1 / sp2)[-18:],
                         #       '               {0:.8f}'.format(1 / sp3)[-18:])
-                    
+
                         t_symbol1 = self.pai[sy1]['orig_symbol']
                         t_step_size1 = self.pai[sy1]['step_size']
                         t_min_qt1 = self.pai[sy1]['min_quote']
                         t_ticksize = self.pai[sy1]['tick_size']
-                        t_amount_mod_buy = self.round_qty_with_step_size(self.lot_size / ((self.price[sy1] - (t_ticksize * self.trade_tick_modifier1))), t_step_size1, 1)
+                        t_amount_mod_buy = self.round_qty_with_step_size(
+                            self.lot_size / ((self.price[sy1] - (t_ticksize * self.trade_tick_modifier1))),
+                            t_step_size1, 1)
                         t_amount1 = t_amount_mod_buy if t_side1 == "BUY" else self.lot_size
 
                         # roundv = len(str(self.price[sy1]).split('.')[1])
 
                         t_price1 = self.price[sy1] - (t_ticksize * self.trade_tick_modifier1) \
-                                    if t_side1 == "BUY" else \
-                                    self.price[t_symbol1] + (t_ticksize * self.trade_tick_modifier1)
-            
+                            if t_side1 == "BUY" else \
+                            self.price[t_symbol1] + (t_ticksize * self.trade_tick_modifier1)
+
                         # trade
                         for trade_try in range(2):
                             # print(trade_try, 'try, 1 symbol', t_symbol1, 'price', self.price[sy1], self.price[t_symbol1],
@@ -526,13 +506,14 @@ class n_arbitrage:
                             t_step_size2 = self.pai[sy2]['step_size']
                             t_min_qt2 = self.pai[sy2]['min_quote']
                             t_ticksize2 = self.pai[sy2]['tick_size']
-                            
-                            t_amount2 = self.round_qty_with_step_size(t_amount2, t_step_size2) if t_side2 == "SELL" else t_amount2
+
+                            t_amount2 = self.round_qty_with_step_size(t_amount2,
+                                                                      t_step_size2) if t_side2 == "SELL" else t_amount2
                             # print('2 symbol', t_symbol2, 'side', t_side2, 'quantity', t_amount2, 'minqt', t_min_qt2)
                             order2 = self.bx_client.order_market(symbol=t_symbol2,
-                                                           side=SIDE_BUY if t_side2 == "BUY" else SIDE_SELL,
-                                                           quantity=None if t_side2 == "BUY" else t_amount2,
-                                                           quoteOrderQty=t_amount2 if t_side2 == "BUY" else None)
+                                                                 side=SIDE_BUY if t_side2 == "BUY" else SIDE_SELL,
+                                                                 quantity=None if t_side2 == "BUY" else t_amount2,
+                                                                 quoteOrderQty=t_amount2 if t_side2 == "BUY" else None)
                             executedQty_2 = round(float(order2['executedQty']), 8)
                             cummulativeQuoteQty_2 = round(float(order2['cummulativeQuoteQty']), 8)
                             t_amount3 = executedQty_2 if t_side2 == "BUY" else cummulativeQuoteQty_2
@@ -540,14 +521,15 @@ class n_arbitrage:
                             t_step_size3 = self.pai[sy3]['step_size']
                             t_min_qt3 = self.pai[sy3]['min_quote']
                             t_ticksize3 = self.pai[sy3]['tick_size']
-                            t_amount3 = self.round_qty_with_step_size(t_amount3, t_step_size3) if t_side3 == "SELL" else t_amount3
+                            t_amount3 = self.round_qty_with_step_size(t_amount3,
+                                                                      t_step_size3) if t_side3 == "SELL" else t_amount3
                             # print('3 symbol', t_symbol3, 'side', t_side3, 'quantity', t_amount3, 'minqt', t_min_qt3)
                             order3 = self.bx_client.order_market(symbol=t_symbol3,
-                                                           side=SIDE_BUY if t_side3 == "BUY" else SIDE_SELL,
-                                                       quantity=None if t_side3 == "BUY" else t_amount3,
-                                                       quoteOrderQty=t_amount3 if t_side3 == "BUY" else None)
+                                                                 side=SIDE_BUY if t_side3 == "BUY" else SIDE_SELL,
+                                                                 quantity=None if t_side3 == "BUY" else t_amount3,
+                                                                 quoteOrderQty=t_amount3 if t_side3 == "BUY" else None)
                             # print(order3)
- 
+
                             px1 = p1 = round(float(order1['fills'][0]['price']), 8)
                             px2 = p2 = round(float(order2['fills'][0]['price']), 8)
                             px3 = p3 = round(float(order3['fills'][0]['price']), 8)
@@ -558,7 +540,7 @@ class n_arbitrage:
                                 px2 = 1 / px2
                             if t_side3 == "BUY":
                                 px3 = 1 / px3
-                                
+
                             realised_profit = round(px1 * px2 * px3, 8)
 
                             # print("Realised profit:       ",
@@ -566,17 +548,17 @@ class n_arbitrage:
                             #       '               {0:.8f}'.format(px2)[-18:],
                             #       '               {0:.8f}'.format(px3)[-18:], ' ' * 12,
                             #       '               {0:.8f}'.format(round(px1 * px2 * px3, 8)))
-                            
+
                             print("Realised:              ",
                                   '               {0:.8f}'.format(p1)[-18:],
                                   '               {0:.8f}'.format(p2)[-18:],
                                   '               {0:.8f}'.format(p3)[-18:], ' ' * 12,
                                   '               {0:.8f}'.format(realised_profit))
-                            
+
                             dif1 = cpx1 - p1 if t_side1 == "BUY" else p1 - cpx1
                             dif2 = cpx2 - p2 if t_side2 == "BUY" else p2 - cpx2
                             dif3 = cpx3 - p3 if t_side3 == "BUY" else p3 - cpx3
-                            
+
                             print("Dif result - est      :",
                                   '               {0:.8f}'.format(dif1)[-18:],
                                   '               {0:.8f}'.format(dif2)[-18:],
@@ -586,7 +568,7 @@ class n_arbitrage:
                                   '               {0:.8f}'.format(self.pai[sy1]['tick_size'])[-18:],
                                   '               {0:.8f}'.format(self.pai[sy2]['tick_size'])[-18:],
                                   '               {0:.8f}'.format(self.pai[sy3]['tick_size'])[-18:])
-                            
+
                             print("Side:               ",
                                   "              " + t_side1,
                                   "              " + t_side2,
@@ -602,31 +584,38 @@ class n_arbitrage:
         # ez sosem fog lefutni mert a szervernek nincs leállítási funkciója csak kilövöm éskész
         await client.close_connection()
 
-    def start_asyc_websocket(self):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    # def f(self, x):
+    #     for xr in range(12):
+    #         print(x, xr)
+    #         time.sleep(5)
+    #     return 1
 
-        loop.run_until_complete(self.asyc_websocket())
-        loop.close()
+    # def g(self, x):
+    #     for xr in range(12):
+    #         print(x, xr)
+    #         time.sleep(7)
+    #     return
+    #
+    # def go(self):
+    #     xpool = mp.Pool(3)
+    #     sc = xpool.map(self, [1, 2, 3, 4])
+    #     print(sc)
+    #
+    # def __call__(self, x):
+    #     if x == 1:
+    #         return self.f(x)
+    #     if x == 2:
+    #         return self.g(x)
+    #     if x == 3:
+    #         return self.f(x)
+    #     if x == 4:
+    #         return self.g(x)
+
 
 if __name__ == '__main__':
-    print('nDot - Arbitrage')
-    print('Get symbols info from Binance')
-    n_arb = n_arbitrage()
-    n_arb.start()
-    init_time = 8
-    print("Number of pairs:", len(n_arb.selected_pairs))
-    print("Spread:", n_arb.spread * 100, "%")
-    print("Price modifier 1:", n_arb.tick_modifier1, " tick")
-    print("Price modifier 2:", n_arb.tick_modifier2, " tick")
-    print("Price modifier 3:", n_arb.tick_modifier3, " tick")
-    print("Start symbol:", n_arb.start_symbol)
-    print("Lot size:", n_arb.lot_size)
+    n_arb = narbitrage_mp
+    # sc.go()
 
-    n_arb.run_analys = True
-    time.sleep(20)
-    n_arb.print_wallet()
+    xpool = mp.Pool(2)
+    res = xpool.map(n_arb, [[2, 1], [2, 2]])
 
-    while True:
-        time.sleep(20)
-        
