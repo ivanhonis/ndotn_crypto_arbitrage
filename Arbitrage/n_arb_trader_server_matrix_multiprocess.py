@@ -28,15 +28,14 @@ class narbitrage_mp(object):
         self.shared_memory_name = prc_inf[2]  # én hanyadik process vagyok
         self.mpi = str(self.process) + "/" + str(self.cores) + " core ->"
         print(self.mpi, "starts.")
-
+        self.load_triangles = "triangles_all.npy"  # ha üres akkor nem tölti be hanem megcsinálja
         self.load_triangles = "triangles_top250.npy"  # ha üres akkor nem tölti be hanem megcsinálja
         self.save_triangles = ""  # ha üres akkor nem tölti be hanem megcsinálja
-        self.max_triangles = 100
-        # self.save_triangles = "triangles_top250.npy"  # ha üres nem menti
+        self.max_triangles = 5000
         self.start_symbol = 'USDT'
         self.symbols_no = 1000  # over 1000 it is max
         self.lot_size = 50  # USDor start symbol
-        self.spread = 0.025 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
+        self.spread = 0.035 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
         self.tick_modifier1 = 0
         self.tick_modifier2 = 0
         self.tick_modifier3 = 0
@@ -56,64 +55,64 @@ class narbitrage_mp(object):
         self.account = self.get_account()
         self.exchange_info = self.get_exchange_info()
 
-        self.symbols = ['USDT', 'BTC', 'ETH', '1INCH', 'AAVE', 'ACH', 'ADA', 'AKRO', 'ALGO', 'ALICE', 'ALPHA', 'ANC',
-                        'ANKR', 'ANT', 'APE', 'AR', 'ASTR', 'ATA', 'ATOM', 'AUD', 'AUDIO', 'AVA',
-                        'AVAX', 'AXS', 'BAKE', 'BAT', 'BCH', 'BEL', 'BETA', 'BICO', 'BIDR', 'BLZ',
-                        'BOND', 'BRL', 'BTCDOWN', 'BTCST', 'BTTC', 'BURGER', 'BUSD',
-                        'C98', 'CAKE', 'CELO', 'CELR', 'CHR', 'CHZ', 'COCOS', 'COMP', 'CRV', 'CTK',
-                        'DAI', 'DAR', 'DASH', 'DENT', 'DGB', 'DOGE', 'DOT', 'DOTDOWN', 'DUSK', 'DYDX',
-                        'EGLD', 'ELF', 'ENJ', 'ENS', 'EOS', 'EPX', 'ETC', 'ETHDOWN', 'EUR', 'FET',
-                        'FIDA', 'FIL', 'FLM', 'FLOW', 'FLUX', 'FORTH', 'FRONT', 'FTM', 'FTT', 'FXS', 'GAL',
-                        'GALA', 'GBP', 'GLMR', 'GMT', 'GRT', 'GTC', 'HBAR', 'HIGH', 'HIVE', 'HNT', 'HOT',
-                        'ICP', 'IDEX', 'IMX', 'IOST', 'IOTA', 'IOTX', 'JASMY', 'JST', 'KAVA', 'KDA', 'KLAY',
-                        'KSM', 'LDO', 'LEVER', 'LINA', 'LINK', 'LIT', 'LOKA', 'LRC', 'LTC', 'LUNA', 'LUNC',
-                        'MANA', 'MASK', 'MATIC', 'MBOX', 'MINA', 'MIR', 'MOVR', 'MTL', 'NEAR', 'NEO', 'NMR',
-                        'OGN', 'ONE', 'ONG', 'OOKI', 'OP', 'PEOPLE', 'PLA', 'POND', 'PORTO', 'POWR', 'PUNDIX',
-                        'PYR', 'QNT', 'QTUM', 'RAD', 'REQ', 'RNDR', 'ROSE', 'RSR', 'RUNE', 'RVN', 'SAND',
-                        'SHIB', 'SKL', 'SLP', 'SNX', 'SOL', 'SRM', 'STMX', 'STORJ', 'STPT', 'STX', 'SUSHI',
-                        'SXP', 'T', 'THETA', 'TKO', 'TLM', 'TRB', 'TRX', 'TRY', 'TUSD', 'UNFI', 'UNI', 'USDC',
-                        'USTC', 'VET', 'VGX', 'VIDT', 'VOXEL', 'WAVES', 'WBTC', 'WIN', 'WING', 'WNXM',
-                        'WOO', 'WTC', 'XLM', 'XMR', 'XRP', 'XTZ', 'YFI', 'YFII', 'YGG', 'ZEC', 'ZIL', 'ZRX']
-
-        # self.symbols = ['1INCH', 'AAVE', 'ACA', 'ACH', 'ACM', 'ADA', 'ADX', 'AE', 'AERGO', 'AGI', 'AGIX', 'AGLD',
-        #                 'AION', 'AKRO', 'ALCX', 'ALGO', 'ALICE', 'ALPACA', 'ALPHA', 'ALPINE', 'AMB', 'AMP', 'ANC',
-        #                 'ANKR', 'ANT', 'ANY', 'APE', 'API3', 'APPC', 'AR', 'ARDR', 'ARK', 'ARN', 'ARPA', 'ASR', 'AST',
-        #                 'ASTR', 'ATA', 'ATM', 'ATOM', 'AUCTION', 'AUD', 'AUDIO', 'AUTO', 'AVA', 'AVAX', 'AXS', 'BADGER',
-        #                 'BAKE', 'BAL', 'BAND', 'BAR', 'BAT', 'BCC', 'BCD', 'BCH', 'BCHA', 'BCHABC', 'BCHSV', 'BCN',
-        #                 'BCPT', 'BDOT', 'BEAM', 'BEAR', 'BEL', 'BETA', 'BETH', 'BGBP', 'BICO', 'BIDR', 'BIFI', 'BKRW',
-        #                 'BLZ', 'BNB', 'BNBBEAR', 'BNBBULL', 'BNT', 'BNX', 'BOND', 'BOT', 'BQX', 'BRD', 'BRL', 'BSW',
-        #                 'BTC', 'BTCB', 'BTCST', 'BTG', 'BTS', 'BTT', 'BTTC', 'BULL', 'BURGER', 'BUSD', 'BVND', 'BZRX',
-        #                 'C98', 'CAKE', 'CDT', 'CELO', 'CELR', 'CFX', 'CHAT', 'CHESS', 'CHR', 'CHZ', 'CITY', 'CKB',
-        #                 'CLOAK', 'CLV', 'CMT', 'CND', 'COCOS', 'COMP', 'COS', 'COTI', 'COVER', 'CREAM', 'CRV', 'CTK',
-        #                 'CTSI', 'CTXC', 'CVC', 'CVP', 'CVX', 'DAI', 'DAR', 'DASH', 'DATA', 'DCR', 'DEGO', 'DENT',
-        #                 'DEXE', 'DF', 'DGB', 'DGD', 'DIA', 'DLT', 'DNT', 'DOCK', 'DODO', 'DOGE', 'DOT', 'DREP', 'DUSK',
-        #                 'DYDX', 'EASY', 'EDO', 'EGLD', 'ELF', 'ENG', 'ENJ', 'ENS', 'EOS', 'EOSBEAR', 'EOSBULL', 'EPS',
-        #                 'EPX', 'ERD', 'ERN', 'ETC', 'ETH', 'ETHBEAR', 'ETHBULL', 'EUR', 'EVX', 'EZ', 'FARM', 'FET',
-        #                 'FIDA', 'FIL', 'FIO', 'FIRO', 'FIS', 'FLM', 'FLOW', 'FLUX', 'FOR', 'FORTH', 'FRONT', 'FTM',
-        #                 'FTT', 'FUEL', 'FUN', 'FXS', 'GAL', 'GALA', 'GAS', 'GBP', 'GHST', 'GLM', 'GLMR', 'GMT', 'GNO',
-        #                 'GNT', 'GO', 'GRS', 'GRT', 'GTC', 'GTO', 'GVT', 'GXS', 'HARD', 'HBAR', 'HC', 'HEGIC', 'HIGH',
-        #                 'HIVE', 'HNT', 'HOT', 'HSR', 'ICN', 'ICP', 'ICX', 'IDEX', 'IDRT', 'ILV', 'IMX', 'INJ', 'INS',
-        #                 'IOST', 'IOTA', 'IOTX', 'IQ', 'IRIS', 'JASMY', 'JOE', 'JST', 'JUV', 'KAVA', 'KDA', 'KEEP',
-        #                 'KEY', 'KLAY', 'KMD', 'KNC', 'KP3R', 'KSM', 'LAZIO', 'LDO', 'LEND', 'LEVER', 'LINA', 'LINK',
-        #                 'LIT', 'LOKA', 'LOOM', 'LPT', 'LRC', 'LSK', 'LTC', 'LTO', 'LUN', 'LUNA', 'LUNC', 'MANA', 'MASK',
-        #                 'MATIC', 'MBL', 'MBOX', 'MC', 'MCO', 'MDA', 'MDT', 'MDX', 'MFT', 'MINA', 'MIR', 'MITH', 'MKR',
-        #                 'MLN', 'MOB', 'MOD', 'MOVR', 'MTH', 'MTL', 'MULTI', 'NANO', 'NAS', 'NAV', 'NBS', 'NCASH',
-        #                 'NEAR', 'NEBL', 'NEO', 'NEXO', 'NGN', 'NKN', 'NMR', 'NPXS', 'NU', 'NULS', 'NXS', 'OAX', 'OCEAN',
-        #                 'OG', 'OGN', 'OM', 'OMG', 'ONE', 'ONG', 'ONT', 'OOKI', 'OP', 'ORN', 'OST', 'OXT', 'PAX', 'PAXG',
-        #                 'PEOPLE', 'PERL', 'PERP', 'PHA', 'PHB', 'PHX', 'PIVX', 'PLA', 'PNT', 'POA', 'POE', 'POLS',
-        #                 'POLY', 'POND', 'PORTO', 'POWR', 'PPT', 'PROM', 'PROS', 'PSG', 'PUNDIX', 'PYR', 'QI', 'QKC',
-        #                 'QLC', 'QNT', 'QSP', 'QTUM', 'QUICK', 'RAD', 'RAMP', 'RARE', 'RAY', 'RCN', 'RDN', 'REEF', 'REI',
-        #                 'REN', 'RENBTC', 'REP', 'REQ', 'RGT', 'RIF', 'RLC', 'RNDR', 'ROSE', 'RPX', 'RSR', 'RUB', 'RUNE',
-        #                 'RVN', 'SALT', 'SAND', 'SANTOS', 'SC', 'SCRT', 'SFP', 'SHIB', 'SKL', 'SKY', 'SLP', 'SNGLS',
-        #                 'SNM', 'SNT', 'SNX', 'SOL', 'SPARTA', 'SPELL', 'SRM', 'SSV', 'STEEM', 'STMX', 'STORJ', 'STORM',
-        #                 'STPT', 'STRAT', 'STRAX', 'STX', 'SUB', 'SUN', 'SUPER', 'SUSD', 'SUSHI', 'SWRV', 'SXP', 'SYS',
-        #                 'T', 'TCT', 'TFUEL', 'THETA', 'TKO', 'TLM', 'TNB', 'TNT', 'TOMO', 'TORN', 'TRB', 'TRIBE',
-        #                 'TRIG', 'TROY', 'TRU', 'TRX', 'TRY', 'TUSD', 'TUSDB', 'TVK', 'TWT', 'UAH', 'UFT', 'UMA', 'UNFI',
-        #                 'UNI', 'USDC', 'USDP', 'USDS', 'USDSB', 'USDT', 'UST', 'USTC', 'UTK', 'VAI', 'VEN', 'VET',
-        #                 'VGX', 'VIA', 'VIB', 'VIBE', 'VIDT', 'VITE', 'VOXEL', 'VTHO', 'WABI', 'WAN', 'WAVES', 'WAXP',
-        #                 'WBTC', 'WIN', 'WING', 'WINGS', 'WNXM', 'WOO', 'WPR', 'WRX', 'WTC', 'XEC', 'XEM', 'XLM', 'XMR',
-        #                 'XNO', 'XRP', 'XRPBEAR', 'XRPBULL', 'XTZ', 'XVG', 'XVS', 'XZC', 'YFI', 'YFII', 'YGG', 'YOYO',
-        #                 'ZAR', 'ZEC', 'ZEN', 'ZIL', 'ZRX']
+        # self.symbols = ['USDT', 'BTC', 'ETH', '1INCH', 'AAVE', 'ACH', 'ADA', 'AKRO', 'ALGO', 'ALICE', 'ALPHA', 'ANC',
+        #                 'ANKR', 'ANT', 'APE', 'AR', 'ASTR', 'ATA', 'ATOM', 'AUD', 'AUDIO', 'AVA',
+        #                 'AVAX', 'AXS', 'BAKE', 'BAT', 'BCH', 'BEL', 'BETA', 'BICO', 'BIDR', 'BLZ',
+        #                 'BOND', 'BRL', 'BTCDOWN', 'BTCST', 'BTTC', 'BURGER', 'BUSD',
+        #                 'C98', 'CAKE', 'CELO', 'CELR', 'CHR', 'CHZ', 'COCOS', 'COMP', 'CRV', 'CTK',
+        #                 'DAI', 'DAR', 'DASH', 'DENT', 'DGB', 'DOGE', 'DOT', 'DOTDOWN', 'DUSK', 'DYDX',
+        #                 'EGLD', 'ELF', 'ENJ', 'ENS', 'EOS', 'EPX', 'ETC', 'ETHDOWN', 'EUR', 'FET',
+        #                 'FIDA', 'FIL', 'FLM', 'FLOW', 'FLUX', 'FORTH', 'FRONT', 'FTM', 'FTT', 'FXS', 'GAL',
+        #                 'GALA', 'GBP', 'GLMR', 'GMT', 'GRT', 'GTC', 'HBAR', 'HIGH', 'HIVE', 'HNT', 'HOT',
+        #                 'ICP', 'IDEX', 'IMX', 'IOST', 'IOTA', 'IOTX', 'JASMY', 'JST', 'KAVA', 'KDA', 'KLAY',
+        #                 'KSM', 'LDO', 'LEVER', 'LINA', 'LINK', 'LIT', 'LOKA', 'LRC', 'LTC', 'LUNA', 'LUNC',
+        #                 'MANA', 'MASK', 'MATIC', 'MBOX', 'MINA', 'MIR', 'MOVR', 'MTL', 'NEAR', 'NEO', 'NMR',
+        #                 'OGN', 'ONE', 'ONG', 'OOKI', 'OP', 'PEOPLE', 'PLA', 'POND', 'PORTO', 'POWR', 'PUNDIX',
+        #                 'PYR', 'QNT', 'QTUM', 'RAD', 'REQ', 'RNDR', 'ROSE', 'RSR', 'RUNE', 'RVN', 'SAND',
+        #                 'SHIB', 'SKL', 'SLP', 'SNX', 'SOL', 'SRM', 'STMX', 'STORJ', 'STPT', 'STX', 'SUSHI',
+        #                 'SXP', 'T', 'THETA', 'TKO', 'TLM', 'TRB', 'TRX', 'TRY', 'TUSD', 'UNFI', 'UNI', 'USDC',
+        #                 'USTC', 'VET', 'VGX', 'VIDT', 'VOXEL', 'WAVES', 'WBTC', 'WIN', 'WING', 'WNXM',
+        #                 'WOO', 'WTC', 'XLM', 'XMR', 'XRP', 'XTZ', 'YFI', 'YFII', 'YGG', 'ZEC', 'ZIL', 'ZRX']
+        #
+        self.symbols = ['1INCH', 'AAVE', 'ACA', 'ACH', 'ACM', 'ADA', 'ADX', 'AE', 'AERGO', 'AGI', 'AGIX', 'AGLD',
+                        'AION', 'AKRO', 'ALCX', 'ALGO', 'ALICE', 'ALPACA', 'ALPHA', 'ALPINE', 'AMB', 'AMP', 'ANC',
+                        'ANKR', 'ANT', 'ANY', 'APE', 'API3', 'APPC', 'AR', 'ARDR', 'ARK', 'ARN', 'ARPA', 'ASR', 'AST',
+                        'ASTR', 'ATA', 'ATM', 'ATOM', 'AUCTION', 'AUD', 'AUDIO', 'AUTO', 'AVA', 'AVAX', 'AXS', 'BADGER',
+                        'BAKE', 'BAL', 'BAND', 'BAR', 'BAT', 'BCC', 'BCD', 'BCH', 'BCHA', 'BCHABC', 'BCHSV', 'BCN',
+                        'BCPT', 'BDOT', 'BEAM', 'BEAR', 'BEL', 'BETA', 'BETH', 'BGBP', 'BICO', 'BIDR', 'BIFI', 'BKRW',
+                        'BLZ', 'BNB', 'BNBBEAR', 'BNBBULL', 'BNT', 'BNX', 'BOND', 'BOT', 'BQX', 'BRD', 'BRL', 'BSW',
+                        'BTC', 'BTCB', 'BTCST', 'BTG', 'BTS', 'BTT', 'BTTC', 'BULL', 'BURGER', 'BUSD', 'BVND', 'BZRX',
+                        'C98', 'CAKE', 'CDT', 'CELO', 'CELR', 'CFX', 'CHAT', 'CHESS', 'CHR', 'CHZ', 'CITY', 'CKB',
+                        'CLOAK', 'CLV', 'CMT', 'CND', 'COCOS', 'COMP', 'COS', 'COTI', 'COVER', 'CREAM', 'CRV', 'CTK',
+                        'CTSI', 'CTXC', 'CVC', 'CVP', 'CVX', 'DAI', 'DAR', 'DASH', 'DATA', 'DCR', 'DEGO', 'DENT',
+                        'DEXE', 'DF', 'DGB', 'DGD', 'DIA', 'DLT', 'DNT', 'DOCK', 'DODO', 'DOGE', 'DOT', 'DREP', 'DUSK',
+                        'DYDX', 'EASY', 'EDO', 'EGLD', 'ELF', 'ENG', 'ENJ', 'ENS', 'EOS', 'EOSBEAR', 'EOSBULL', 'EPS',
+                        'EPX', 'ERD', 'ERN', 'ETC', 'ETH', 'ETHBEAR', 'ETHBULL', 'EUR', 'EVX', 'EZ', 'FARM', 'FET',
+                        'FIDA', 'FIL', 'FIO', 'FIRO', 'FIS', 'FLM', 'FLOW', 'FLUX', 'FOR', 'FORTH', 'FRONT', 'FTM',
+                        'FTT', 'FUEL', 'FUN', 'FXS', 'GAL', 'GALA', 'GAS', 'GBP', 'GHST', 'GLM', 'GLMR', 'GMT', 'GNO',
+                        'GNT', 'GO', 'GRS', 'GRT', 'GTC', 'GTO', 'GVT', 'GXS', 'HARD', 'HBAR', 'HC', 'HEGIC', 'HIGH',
+                        'HIVE', 'HNT', 'HOT', 'HSR', 'ICN', 'ICP', 'ICX', 'IDEX', 'IDRT', 'ILV', 'IMX', 'INJ', 'INS',
+                        'IOST', 'IOTA', 'IOTX', 'IQ', 'IRIS', 'JASMY', 'JOE', 'JST', 'JUV', 'KAVA', 'KDA', 'KEEP',
+                        'KEY', 'KLAY', 'KMD', 'KNC', 'KP3R', 'KSM', 'LAZIO', 'LDO', 'LEND', 'LEVER', 'LINA', 'LINK',
+                        'LIT', 'LOKA', 'LOOM', 'LPT', 'LRC', 'LSK', 'LTC', 'LTO', 'LUN', 'LUNA', 'LUNC', 'MANA', 'MASK',
+                        'MATIC', 'MBL', 'MBOX', 'MC', 'MCO', 'MDA', 'MDT', 'MDX', 'MFT', 'MINA', 'MIR', 'MITH', 'MKR',
+                        'MLN', 'MOB', 'MOD', 'MOVR', 'MTH', 'MTL', 'MULTI', 'NANO', 'NAS', 'NAV', 'NBS', 'NCASH',
+                        'NEAR', 'NEBL', 'NEO', 'NEXO', 'NGN', 'NKN', 'NMR', 'NPXS', 'NU', 'NULS', 'NXS', 'OAX', 'OCEAN',
+                        'OG', 'OGN', 'OM', 'OMG', 'ONE', 'ONG', 'ONT', 'OOKI', 'OP', 'ORN', 'OST', 'OXT', 'PAX', 'PAXG',
+                        'PEOPLE', 'PERL', 'PERP', 'PHA', 'PHB', 'PHX', 'PIVX', 'PLA', 'PNT', 'POA', 'POE', 'POLS',
+                        'POLY', 'POND', 'PORTO', 'POWR', 'PPT', 'PROM', 'PROS', 'PSG', 'PUNDIX', 'PYR', 'QI', 'QKC',
+                        'QLC', 'QNT', 'QSP', 'QTUM', 'QUICK', 'RAD', 'RAMP', 'RARE', 'RAY', 'RCN', 'RDN', 'REEF', 'REI',
+                        'REN', 'RENBTC', 'REP', 'REQ', 'RGT', 'RIF', 'RLC', 'RNDR', 'ROSE', 'RPX', 'RSR', 'RUB', 'RUNE',
+                        'RVN', 'SALT', 'SAND', 'SANTOS', 'SC', 'SCRT', 'SFP', 'SHIB', 'SKL', 'SKY', 'SLP', 'SNGLS',
+                        'SNM', 'SNT', 'SNX', 'SOL', 'SPARTA', 'SPELL', 'SRM', 'SSV', 'STEEM', 'STMX', 'STORJ', 'STORM',
+                        'STPT', 'STRAT', 'STRAX', 'STX', 'SUB', 'SUN', 'SUPER', 'SUSD', 'SUSHI', 'SWRV', 'SXP', 'SYS',
+                        'T', 'TCT', 'TFUEL', 'THETA', 'TKO', 'TLM', 'TNB', 'TNT', 'TOMO', 'TORN', 'TRB', 'TRIBE',
+                        'TRIG', 'TROY', 'TRU', 'TRX', 'TRY', 'TUSD', 'TUSDB', 'TVK', 'TWT', 'UAH', 'UFT', 'UMA', 'UNFI',
+                        'UNI', 'USDC', 'USDP', 'USDS', 'USDSB', 'USDT', 'UST', 'USTC', 'UTK', 'VAI', 'VEN', 'VET',
+                        'VGX', 'VIA', 'VIB', 'VIBE', 'VIDT', 'VITE', 'VOXEL', 'VTHO', 'WABI', 'WAN', 'WAVES', 'WAXP',
+                        'WBTC', 'WIN', 'WING', 'WINGS', 'WNXM', 'WOO', 'WPR', 'WRX', 'WTC', 'XEC', 'XEM', 'XLM', 'XMR',
+                        'XNO', 'XRP', 'XRPBEAR', 'XRPBULL', 'XTZ', 'XVG', 'XVS', 'XZC', 'YFI', 'YFII', 'YGG', 'YOYO',
+                        'ZAR', 'ZEC', 'ZEN', 'ZIL', 'ZRX']
         
         # ezeket előre teszem hogy minden szűkítésnél bent legyenű
         axd = ['USDT', 'BTC', 'ETH']
@@ -130,17 +129,16 @@ class narbitrage_mp(object):
         self.selected_symbols = self.symbols[:self.symbols_no]  ## kiválasztam amivel dolgozok szűkíthetem a kört
         print(self.mpi, "Symbols:", len(self.selected_symbols))
         self.all_pairs = self.defa_all_pairs()
-        self.selected_pairs = self.defa_selected_pairs()  ##a kiválasztott szimbólumokhoz kapcsolódó párokat kiválasztom
+        self.selected_pairs = self.defa_selected_pairs2()  ##a kiválasztott szimbólumokhoz kapcsolódó párokat kiválasztom
         self.price = self.defa_price_dict()
-        self.pai = self.defa_pair_info()  # pair info
-
+        self.pai = self.defa_pair_info2()  # pair info
         # az a számlám miből mennyi van, azért hívom becsült mnnyiségnek mert
         # kötés közben nincs idő lekérdezni a számlát ezért csak megsaccolom azt
         self.wallet = {}
-
         self.refresh_map = None
         self.triangles = None
         self.print_info()
+        self.print_wallet()
         self.arb_matrix()
         self.run_analys = False
         self.last_arb = ""
@@ -156,7 +154,6 @@ class narbitrage_mp(object):
             print("Price modifier 3 (orderbook, trade):", self.tick_modifier3, self.trade_tick_modifier3, " tick")
             print("Start symbol:", self.start_symbol)
             print("Lot size:", self.lot_size)
-            self.print_wallet()
 
     def get_slice_index(self, xlen, parts, slice_no):
         slices = np.array_split(list(np.arange(0, xlen)), parts)
@@ -222,6 +219,7 @@ class narbitrage_mp(object):
         
 
         self.triangles = self.triangles[:self.max_triangles, :]  # fejlesztéshez, még vissza tudom venni a számát
+        print(self.mpi, 'Reduced triangles size:', self.triangles.shape)
         # processre szétdarabolom
         start_x, end_x = self.get_slice_index(self.triangles.shape[0], self.cores, self.process)
         self.triangles = self.triangles[start_x:end_x, :]
@@ -284,6 +282,13 @@ class narbitrage_mp(object):
                     i_selected_pairs[''.join([si1, si2])] = [si1, si2]
         return i_selected_pairs
 
+    def defa_selected_pairs2(self):
+        sydi = {}
+        for sx in self.exchange_info['symbols']:
+            if sx['status'] == 'TRADING' and "MARKET" in sx['orderTypes']:
+                sydi[sx['symbol']] = [sx['baseAsset'], sx['quoteAsset']]
+        return sydi
+
     def get_symbol_info(self, symbol):
         for item in self.exchange_info['symbols']:
             if item['symbol'] == symbol.upper():
@@ -297,6 +302,39 @@ class narbitrage_mp(object):
                 i_selected_pairs["".join([si1, si2])] = 1.0
                 i_selected_pairs["".join([si2, si1])] = 1.0
         return i_selected_pairs
+
+    def defa_pair_info2(self):
+        pair_info = {}
+        for sx in self.exchange_info['symbols']:
+            if sx['status'] == 'TRADING' and "MARKET" in sx['orderTypes']:
+                    filters = sx['filters'][2]
+                    base = sx['baseAsset']
+                    quot = sx['quoteAsset']
+                    step_size = float(filters['stepSize'])
+                    ticksize = float(sx['filters'][0]['tickSize'])
+                    min_qty = float(filters['minQty'])
+                    data_sell = {'orig_symbol': sx['symbol'],
+                                 'side': 'SELL',
+                                 'step_size': step_size,
+                                 'min_quote': min_qty,
+                                 'base': base,
+                                 'quote': quot,
+                                 'tick_size': ticksize
+                                 }
+
+                    data_buy = {'orig_symbol': sx['symbol'],
+                                'side': 'BUY',
+                                'step_size': step_size,
+                                'min_quote': min_qty,
+                                'base': base,
+                                'quote': quot,
+                                'tick_size': ticksize
+                                }
+
+                    pair_info[sx['baseAsset'] + sx['quoteAsset']] = data_sell
+                    pair_info[sx['quoteAsset'] + sx['baseAsset']] = data_buy
+
+        return pair_info
 
     def defa_pair_info(self):
         # ez egy hogyan, miről, mire megyek katalógus
@@ -377,6 +415,7 @@ class narbitrage_mp(object):
         self.price["BNBBTC"] = bnbbtc
         self.price["BTCBNB"] = 1 / bnbbtc
 
+        print("")
         print("Spot wallet:")
         print(" symbol    amount       USD        BTC")
         total_in_usdt = 0
@@ -413,6 +452,7 @@ class narbitrage_mp(object):
 
         print("________________________________________________")
         print("Total:                 ", total_usdtstr[:10], total_btcstr[:10])
+        print("")
 
     def round_qty_with_step_size(self, quantity, step_size, reduce=0):
         reduce = Decimal(reduce * step_size)  # ennyi darabbal visszaveszi
@@ -479,17 +519,21 @@ class narbitrage_mp(object):
                 profit_array = np.multiply(np.multiply(self.ab1, self.ab2), self.ab3)
                 max_row = np.argmax(profit_array)
                 min_row = np.argmin(profit_array)
-                profit = self.ab1[max_row] * self.ab2[max_row] * self.ab3[max_row] - (self.spread * 3)
-                # self.max_profit = max(self.max_profit, profit)
+                min_profit = self.ab1[min_row] * self.ab2[min_row] * self.ab3[min_row]
 
-                self.calculate_count += 1
-                if self.calculate_count % 25000 == 0:
-                    print(self.mpi, self.calculate_count, profit)
-                #     self.max_profit = 0
+                profit = self.ab1[max_row] * self.ab2[max_row] * self.ab3[max_row] - (self.spread * 3)
+                cp1 = cpx1 = self.ab1[max_row]
+                cp2 = cpx2 = self.ab2[max_row]
+                cp3 = cpx3 = self.ab3[max_row]
 
                 sy1 = self.triangles[max_row][0].decode('UTF-8')
                 sy2 = self.triangles[max_row][1].decode('UTF-8')
                 sy3 = self.triangles[max_row][2].decode('UTF-8')
+
+                self.calculate_count += 1
+                if self.calculate_count % 75000 == 0:
+                    print(self.mpi, '+', self.calculate_count, profit, min_profit)
+                    self.calculate_count = 1
 
                 arb_str = str([sy1, sy2, sy3])
 
@@ -504,10 +548,6 @@ class narbitrage_mp(object):
                     existing_shm.close()
                     
                     self.last_arb = arb_str
-                    
-                    cp1 = cpx1 = self.ab1[max_row]
-                    cp2 = cpx2 = self.ab2[max_row]
-                    cp3 = cpx3 = self.ab3[max_row]
 
                     t_side1 = self.pai[sy1]['side']
                     t_side2 = self.pai[sy2]['side']
@@ -529,8 +569,10 @@ class narbitrage_mp(object):
                     print("Estimated:             ",
                           '               {0:.8f}'.format(cpx1)[-18:],
                           '               {0:.8f}'.format(cpx2)[-18:],
-                          '               {0:.8f}'.format(cpx3)[-18:], ' ' * 11,
-                          '               {0:.8f}'.format(est_profit))
+                          '               {0:.8f}'.format(cpx3)[-18:])
+                    print('Profit:                     0.0%', '{0:.8f}   '.format(est_profit),
+                          '0.025%', '{0:.8f}   '.format(est_profit - (3 * 0.00025)),
+                          '0.05% ', '{0:.8f}   '.format(est_profit - (3 * 0.0005)))
                     #
                     # sp1 egyenes
                     # spmx ha kell reciprok
@@ -538,88 +580,108 @@ class narbitrage_mp(object):
                     # sp2 = self.price[sy2]
                     # sp3 = self.price[sy3]
 
-                    # print("Orderbook prices:      ",
-                    #       '               {0:.8f}'.format(sp1)[-18:],
-                    #       '               {0:.8f}'.format(sp2)[-18:],
-                    #       '               {0:.8f}'.format(sp3)[-18:])
-                    #
-                    # print("Orderbook prices (1/): ",
-                    #       '               {0:.8f}'.format(1 / sp1)[-18:],
-                    #       '               {0:.8f}'.format(1 / sp2)[-18:],
-                    #       '               {0:.8f}'.format(1 / sp3)[-18:])
-                    
-                    if 1 == 2:
+
+                    if 1 == 1:
                         print(self.mpi, "Trade", arb_str)
                         t_symbol1 = self.pai[sy1]['orig_symbol']
                         t_base1 = self.pai[sy1]['base']
                         t_quote1 = self.pai[sy1]['quote']
                         t_step_size1 = self.pai[sy1]['step_size']
                         # t_min_qt1 = self.pai[sy1]['min_quote']
-                        t_ticksize = self.pai[sy1]['tick_size']
+                        t_ticksize1 = self.pai[sy1]['tick_size']
                         t_amount_mod_buy = self.round_qty_with_step_size(
-                            self.lot_size / ((self.price[sy1] - (t_ticksize * self.trade_tick_modifier1))),
-                            t_step_size1, 0)
+                            self.lot_size / ((self.price[sy1] - (t_ticksize1 * self.trade_tick_modifier1))),
+                            t_step_size1, 1)
                         t_amount1 = t_amount_mod_buy if t_side1 == "BUY" else self.lot_size
-                        t_price1 = self.price[sy1] - (t_ticksize * self.trade_tick_modifier1) \
+                        t_price1 = self.price[sy1] - (t_ticksize1 * self.trade_tick_modifier1) \
                             if t_side1 == "BUY" else \
-                            self.price[t_symbol1] + (t_ticksize * self.trade_tick_modifier1)
+                            self.price[t_symbol1] + (t_ticksize1 * self.trade_tick_modifier1)
     
                         # trade
+                        print(self.wallet)
                         for trade_try in range(2):
-                            # print(trade_try, 'try, 1 symbol', t_symbol1, 'price', self.price[sy1], self.price[t_symbol1],
-                            #       't_price {0:.8f}'.format(t_price1), 'side', t_side1, 'quantity', t_amount1, 'minqt',
-                            #       t_min_qt1)
+                            print(trade_try, 'try, 1 symbol', t_symbol1, 'price', self.price[sy1], self.price[t_symbol1],
+                                  't_price {0:.8f}'.format(t_price1), 'side', t_side1, 'quantity', t_amount1, 'minqt'
+                                  )
                             order1 = self.bx_client.order_limit(symbol=t_symbol1,
                                                                 price='{0:.8f}'.format(t_price1),
                                                                 side=t_side1,
                                                                 quantity=t_amount1,
-                                                                timeInForce=TIME_IN_FORCE_FOK)
-                            if order1['status'] != 'EXPIRED':
+                                                                timeInForce=TIME_IN_FORCE_IOC)
+                            if order1['status'] in [ORDER_STATUS_PARTIALLY_FILLED,
+                                                    ORDER_STATUS_FILLED,
+                                                    ORDER_STATUS_EXPIRED]:
                                 break
-                        # print(order1)
+                        print(order1)
                         
-                        if order1['status'] != 'EXPIRED':
+                        if order1['status'] in [ORDER_STATUS_PARTIALLY_FILLED,
+                                                ORDER_STATUS_FILLED]:
+                            print("1")
                             executedQty_1 = round(float(order1['executedQty']), 8)
+                            print("2")
                             cummulativeQuoteQty_1 = round(float(order1['cummulativeQuoteQty']), 8)
                             # t_amount2 = executedQty_1 if t_side1 == "BUY" else cummulativeQuoteQty_1
-                            if t_side1 == "BUY":
-                                self.wallet["".join([t_base1, t_quote1])] += executedQty_1
+                            print("If", t_side1, "--")
+                            if "BUY" == t_side1:
+                                print("3", self.wallet[t_base1], executedQty_1)
+                                self.wallet[t_base1] += executedQty_1
+                                print("4")
+                                self.wallet[t_quote1] -= cummulativeQuoteQty_1
                             else:
-                                self.wallet["".join([t_quote1, t_base1])] += cummulativeQuoteQty_1
+                                print("5")
+                                self.wallet[t_quote1] += cummulativeQuoteQty_1
+                                print("6")
+                                self.wallet[t_base1] -= executedQty_1
+
+                            print("wallet", t_quote1, self.wallet[t_quote1])
+                            print("wallet", t_base1, self.wallet[t_base1])
+
+                            # csak az érkező mennyiséggel törődök
 
                             t_symbol2 = self.pai[sy2]['orig_symbol']
-                            t_base2 = self.pai[t_symbol2['base']]
+                            t_base2 = self.pai[sy2]['base']
+                            t_quote2 = self.pai[sy2]['quote']
                             t_step_size2 = self.pai[sy2]['step_size']
                             t_min_qt2 = self.pai[sy2]['min_quote']
                             t_ticksize2 = self.pai[sy2]['tick_size']
 
-                            t_amount2 = self.wallet[t_base2]
+                            t_amount2 = self.wallet[t_base2] if t_side2 == "SELL" else self.wallet[t_quote2]
                             t_amount2 = self.round_qty_with_step_size(t_amount2,
                                                                       t_step_size2) if t_side2 == "SELL" else t_amount2
-                            # print('2 symbol', t_symbol2, 'side', t_side2, 'quantity', t_amount2, 'minqt', t_min_qt2)
+                            print('2 symbol', t_symbol2, 'side', t_side2, 'quantity', t_amount2, 'minqt', t_min_qt2)
                             order2 = self.bx_client.order_market(symbol=t_symbol2,
                                                                  side=SIDE_BUY if t_side2 == "BUY" else SIDE_SELL,
                                                                  quantity=None if t_side2 == "BUY" else t_amount2,
                                                                  quoteOrderQty=t_amount2 if t_side2 == "BUY" else None)
+                            print(order2)
                             executedQty_2 = round(float(order2['executedQty']), 8)
                             cummulativeQuoteQty_2 = round(float(order2['cummulativeQuoteQty']), 8)
-                            t_amount3 = executedQty_2 if t_side2 == "BUY" else cummulativeQuoteQty_2
-                            if t_side1 == "BUY":
-                                self.wallet["".join([t_base1, t_quote1])] += t_amount2
+                            if t_side2 == "BUY":
+                                print("3")
+                                self.wallet[t_base2] += executedQty_2
+                                print("4")
+                                self.wallet[t_quote2] -= cummulativeQuoteQty_2
+
                             else:
-                                self.wallet["".join([t_quote1, t_base1])] += t_amount2
+                                print("5")
+                                self.wallet[t_quote2] += cummulativeQuoteQty_2
+                                print("6")
+                                self.wallet[t_base2] -= executedQty_2
+                            t_base3 = self.pai[sy3]['base']
+                            t_quote3 = self.pai[sy3]['quote']
+                            t_amount3 = self.wallet[t_base3] if t_side3 == "SELL" else self.wallet[t_quote3]
                             t_symbol3 = self.pai[sy3]['orig_symbol']
                             t_step_size3 = self.pai[sy3]['step_size']
                             t_min_qt3 = self.pai[sy3]['min_quote']
-                            t_ticksize3 = self.pai[sy3]['tick_size']
+                            # t_ticksize3 = self.pai[sy3]['tick_size']
                             t_amount3 = self.round_qty_with_step_size(t_amount3,
                                                                       t_step_size3) if t_side3 == "SELL" else t_amount3
-                            # print('3 symbol', t_symbol3, 'side', t_side3, 'quantity', t_amount3, 'minqt', t_min_qt3)
+                            print('3 symbol', t_symbol3, 'side', t_side3, 'quantity', t_amount3, 'minqt', t_min_qt3)
                             order3 = self.bx_client.order_market(symbol=t_symbol3,
                                                                  side=SIDE_BUY if t_side3 == "BUY" else SIDE_SELL,
                                                                  quantity=None if t_side3 == "BUY" else t_amount3,
                                                                  quoteOrderQty=t_amount3 if t_side3 == "BUY" else None)
-                            # print(order3)
+                            print(order3)
     
                             px1 = p1 = round(float(order1['fills'][0]['price']), 8)
                             px2 = p2 = round(float(order2['fills'][0]['price']), 8)
@@ -673,16 +735,21 @@ class narbitrage_mp(object):
                                   "              " + t_side3)
     
                             self.print_wallet()
-                            time.sleep(20)
                         else:
                             print("Start order failed.")
+                            existing_shm = shared_memory.SharedMemory(name=self.shared_memory_name)
+                            np_array = np.ndarray((1,), dtype=np.int64, buffer=existing_shm.buf)
+                            lock.acquire()
+                            np_array[0] = 1
+                            lock.release()
+                            existing_shm.close()
 
-                    existing_shm = shared_memory.SharedMemory(name=self.shared_memory_name)
-                    np_array = np.ndarray((1,), dtype=np.int64, buffer=existing_shm.buf)
-                    lock.acquire()
-                    np_array[0] = 1
-                    lock.release()
-                    existing_shm.close()
+                    # existing_shm = shared_memory.SharedMemory(name=self.shared_memory_name)
+                    # np_array = np.ndarray((1,), dtype=np.int64, buffer=existing_shm.buf)
+                    # lock.acquire()
+                    # np_array[0] = 1
+                    # lock.release()
+                    # existing_shm.close()
                 else:
                     existing_shm.close()
 
@@ -697,8 +764,8 @@ if __name__ == '__main__':
     np_array = np.ndarray(a.shape, dtype=np.int64, buffer=shm.buf)
     np_array[:] = a[:]  # Copy the original data into shared memory
     
-    # used_cores = cpu_count()
-    used_cores = 5
+    used_cores = cpu_count()
+    # used_cores = 1
     
     params = []
     for x in range(used_cores):
