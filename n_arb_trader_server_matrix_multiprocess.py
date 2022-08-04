@@ -29,11 +29,14 @@ class narbitrage_mp(object):
         self.mpi = str(self.process) + "/" + str(self.cores) + " core ->"
         print(self.mpi, "starts.")
 
-        self.load_triangles = True
+        self.load_triangles = "triangles_top250.npy"  # ha üres akkor nem tölti be hanem megcsinálja
+        self.save_triangles = ""  # ha üres akkor nem tölti be hanem megcsinálja
+        self.max_triangles = 100
+        # self.save_triangles = "triangles_top250.npy"  # ha üres nem menti
         self.start_symbol = 'USDT'
         self.symbols_no = 1000  # over 1000 it is max
         self.lot_size = 50  # USDor start symbol
-        self.spread = 0.075 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
+        self.spread = 0.025 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
         self.tick_modifier1 = 0
         self.tick_modifier2 = 0
         self.tick_modifier3 = 0
@@ -71,7 +74,7 @@ class narbitrage_mp(object):
                         'SXP', 'T', 'THETA', 'TKO', 'TLM', 'TRB', 'TRX', 'TRY', 'TUSD', 'UNFI', 'UNI', 'USDC',
                         'USTC', 'VET', 'VGX', 'VIDT', 'VOXEL', 'WAVES', 'WBTC', 'WIN', 'WING', 'WNXM',
                         'WOO', 'WTC', 'XLM', 'XMR', 'XRP', 'XTZ', 'YFI', 'YFII', 'YGG', 'ZEC', 'ZIL', 'ZRX']
-        #
+
         # self.symbols = ['1INCH', 'AAVE', 'ACA', 'ACH', 'ACM', 'ADA', 'ADX', 'AE', 'AERGO', 'AGI', 'AGIX', 'AGLD',
         #                 'AION', 'AKRO', 'ALCX', 'ALGO', 'ALICE', 'ALPACA', 'ALPHA', 'ALPINE', 'AMB', 'AMP', 'ANC',
         #                 'ANKR', 'ANT', 'ANY', 'APE', 'API3', 'APPC', 'AR', 'ARDR', 'ARK', 'ARN', 'ARPA', 'ASR', 'AST',
@@ -126,12 +129,9 @@ class narbitrage_mp(object):
 
         self.selected_symbols = self.symbols[:self.symbols_no]  ## kiválasztam amivel dolgozok szűkíthetem a kört
         print(self.mpi, "Symbols:", len(self.selected_symbols))
-
-
         self.all_pairs = self.defa_all_pairs()
         self.selected_pairs = self.defa_selected_pairs()  ##a kiválasztott szimbólumokhoz kapcsolódó párokat kiválasztom
         self.price = self.defa_price_dict()
-        self.socket_list = self.defa_socket_list()
         self.pai = self.defa_pair_info()  # pair info
 
         # az a számlám miből mennyi van, azért hívom becsült mnnyiségnek mert
@@ -213,13 +213,16 @@ class narbitrage_mp(object):
                         del_index.append(row_x)
             self.triangles = np.delete(self.triangles, del_index, 0)
 
-            with open('triangles.npy', 'wb') as file:
-                np.save(file, self.triangles)
+            if self.save_triangles:
+                with open(self.save_triangles, 'wb') as file:
+                    np.save(file, self.triangles)
         else:
-            with open('triangles.npy', 'rb') as file:
+            with open(self.load_triangles, 'rb') as file:
                 self.triangles = np.load(file)
         
-        #processre szétdarabolom
+
+        self.triangles = self.triangles[:self.max_triangles, :]  # fejlesztéshez, még vissza tudom venni a számát
+        # processre szétdarabolom
         start_x, end_x = self.get_slice_index(self.triangles.shape[0], self.cores, self.process)
         self.triangles = self.triangles[start_x:end_x, :]
 
@@ -274,10 +277,11 @@ class narbitrage_mp(object):
         i_selected_pairs = {}
         for si1 in self.selected_symbols:
             for si2 in self.selected_symbols:
-                if si1 + si2 in self.all_pairs and \
-                        self.get_symbol_info(si1 + si2)['status'] == 'TRADING' and \
-                        "MARKET" in self.get_symbol_info(si1 + si2)['orderTypes']:
-                    i_selected_pairs[si1 + si2] = [si1, si2]
+                symbo_info = self.get_symbol_info(''.join([si1, si2]))
+                if ''.join([si1, si2]) in self.all_pairs and \
+                        symbo_info['status'] == 'TRADING' and \
+                        "MARKET" in symbo_info['orderTypes']:
+                    i_selected_pairs[''.join([si1, si2])] = [si1, si2]
         return i_selected_pairs
 
     def get_symbol_info(self, symbol):
@@ -329,11 +333,11 @@ class narbitrage_mp(object):
 
         return pair_info
 
-    def defa_socket_list(self):
-        i_socket_list = []
-        for sp in tuple(self.selected_pairs.keys()):
-            i_socket_list.append(sp.lower() + '@bookTicker')
-        return i_socket_list
+    # def defa_socket_list(self):
+    #     i_socket_list = []
+    #     for sp in tuple(self.selected_pairs.keys()):
+    #         i_socket_list.append(sp.lower() + '@bookTicker')
+    #     return i_socket_list
 
     def isin_triangles(self, what):
         what = str(what)
@@ -509,28 +513,25 @@ class narbitrage_mp(object):
                     t_side2 = self.pai[sy2]['side']
                     t_side3 = self.pai[sy3]['side']
 
-                    # if t_side1 == "BUY":
-                    #     cpx1 = 1 / cpx1
-                    # if t_side2 == "BUY":
-                    #     cpx2 = 1 / cpx2
-                    # if t_side3 == "BUY":
-                    #     cpx3 = 1 / cpx3
-                    #
-                    # est_profit = cp1 * cp2 * cp3
-                    #
-                    #
-                    #
-                    # print("")
-                    # print("")
-                    # print("Start trade:                    ", sy1, '      ',
-                    #       sy2, '    ',
-                    #       sy3, '              ')
-                    # print("Estimated:             ",
-                    #       '               {0:.8f}'.format(cpx1)[-18:],
-                    #       '               {0:.8f}'.format(cpx2)[-18:],
-                    #       '               {0:.8f}'.format(cpx3)[-18:], ' ' * 11,
-                    #       '               {0:.8f}'.format(est_profit))
+                    if t_side1 == "BUY":
+                        cpx1 = 1 / cpx1
+                    if t_side2 == "BUY":
+                        cpx2 = 1 / cpx2
+                    if t_side3 == "BUY":
+                        cpx3 = 1 / cpx3
 
+                    est_profit = cp1 * cp2 * cp3
+                    print("")
+                    print("")
+                    print("Start trade:                    ", sy1, '      ',
+                          sy2, '    ',
+                          sy3, '              ')
+                    print("Estimated:             ",
+                          '               {0:.8f}'.format(cpx1)[-18:],
+                          '               {0:.8f}'.format(cpx2)[-18:],
+                          '               {0:.8f}'.format(cpx3)[-18:], ' ' * 11,
+                          '               {0:.8f}'.format(est_profit))
+                    #
                     # sp1 egyenes
                     # spmx ha kell reciprok
                     # sp1 = self.price[sy1]
@@ -547,8 +548,8 @@ class narbitrage_mp(object):
                     #       '               {0:.8f}'.format(1 / sp2)[-18:],
                     #       '               {0:.8f}'.format(1 / sp3)[-18:])
                     
-                    if 1 == 1:
-                        
+                    if 1 == 2:
+                        print(self.mpi, "Trade", arb_str)
                         t_symbol1 = self.pai[sy1]['orig_symbol']
                         t_base1 = self.pai[sy1]['base']
                         t_quote1 = self.pai[sy1]['quote']
@@ -572,7 +573,7 @@ class narbitrage_mp(object):
                                                                 price='{0:.8f}'.format(t_price1),
                                                                 side=t_side1,
                                                                 quantity=t_amount1,
-                                                                timeInForce=TIME_IN_FORCE_IOC)
+                                                                timeInForce=TIME_IN_FORCE_FOK)
                             if order1['status'] != 'EXPIRED':
                                 break
                         # print(order1)
@@ -696,8 +697,8 @@ if __name__ == '__main__':
     np_array = np.ndarray(a.shape, dtype=np.int64, buffer=shm.buf)
     np_array[:] = a[:]  # Copy the original data into shared memory
     
-    used_cores = cpu_count()
-    # used_cores = 1
+    # used_cores = cpu_count()
+    used_cores = 5
     
     params = []
     for x in range(used_cores):
