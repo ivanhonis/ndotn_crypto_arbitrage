@@ -30,11 +30,14 @@ class narbitrage_mp(object):
         global all_bid_ask_flow
         self.cores = prc_inf[0]  # összesen hány process van
         self.process = prc_inf[1]  # én hanyadik process vagyok
-        self.shared_memory_name = prc_inf[2]  # én hanyadik process vagyok
+        self.shared_memory_name = prc_inf[2]  # megosztott memória trade lockhoz
+        # print(self.shared_memory_name)
+        self.deal_counter_shared_memory_name = prc_inf[3]  # megosztott memória dealhoz
         self.mpi = str(self.process) + "/" + str(self.cores) + " core ->"
         print(self.mpi, "starts.")
-        self.load_triangles = "triangles_all.npy"  # ha üres akkor nem tölti be hanem megcsinálja
-        # self.load_triangles = "triangles_top250.npy"  # ha üres akkor nem tölti be hanem megcsinálja
+
+        # self.load_triangles = "triangles_all.npy"  # ha üres akkor nem tölti be hanem megcsinálja
+        self.load_triangles = "triangles_top250.npy"  # ha üres akkor nem tölti be hanem megcsinálja
         # self.load_triangles = ""
         # self.save_triangles = "triangles_all.npy"  # ha üres akkor nem tölti be hanem megcsinálja
         self.save_triangles = ""
@@ -42,13 +45,13 @@ class narbitrage_mp(object):
         self.start_symbol = 'USDT'
         self.symbols_no = 1000  # over 1000 it is max
         self.lot_size = 25  # USDor start symbol
-        self.spread = 0.095 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
+        self.spread = 0.075 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
         self.spred_x_3 = self.spread * 3
         self.tick_modifier1 = 0
         self.tick_modifier2 = 0
         self.tick_modifier3 = 0
 
-        self.trade_tick_modifier1 = 0
+        self.trade_tick_modifier1 = 0  # -1 próbáld megvenni olcsóbban (pushing) +1 drágábban is jó
         self.trade_tick_modifier2 = 0
         self.trade_tick_modifier3 = 0
         
@@ -131,7 +134,7 @@ class narbitrage_mp(object):
 
 
         ## off symbols
-        self.off_symbols = ['BIDR', 'BUSD', 'BNB', 'USDC', 'TUSD']
+        self.off_symbols = ['BIDR', 'BUSD', 'BNB', 'USDC', 'TUSD', 'TRY']
         for osy in self.off_symbols:
             self.symbols.remove(osy)
 
@@ -145,8 +148,9 @@ class narbitrage_mp(object):
         self.monitor_recieved_data = 1
         self.monitor_data_manager_count = 1
         self.monitor_deal_hunter_count = 1
-        self.sleep_data_manager = 0.01
+        self.sleep_data_manager = 0.005
         self.sleep_deal_hunter = 0.01
+        self.deal_count = 0
 
         self.wallet = {}
         self.roll_back = False
@@ -168,7 +172,8 @@ class narbitrage_mp(object):
     def monitoring(self):
         while True:
             sleep_monitoring = 5
-            over_weight = 1.2  ## ha lehet akkor a data mangement mindíg kicsit gyorsabb legyen mist a érkezés
+
+            over_weight = 1.15  ## ha lehet akkor a data mangement mindíg kicsit gyorsabb legyen mist a érkezés
             time.sleep(sleep_monitoring)
             # print(self.mpi, "monitoring last", sleep_monitoring, "sec.")
             # print(self.mpi, "monitor_recieved_data", self.monitor_recieved_data)
@@ -177,20 +182,20 @@ class narbitrage_mp(object):
             # print(self.mpi, "sleep_data_manager now", self.sleep_data_manager)
             self.sleep_data_manager = self.sleep_data_manager / \
                                       ((self.monitor_recieved_data * over_weight) / self.monitor_data_manager_count)
-            # print(self.mpi, "sleep_data_manager new", self.sleep_data_manager)
+            print(self.mpi, "sleep_data_manager new", self.sleep_data_manager)
             self.monitor_recieved_data = 1
             self.monitor_data_manager_count = 1
             self.monitor_deal_hunter_count = 1
 
 
     def strat_threads(self):
-        task1 = Thread(target=self.set_market_data_loop, args=[])
+        task1 = Thread(target=self.data_manager_loop, args=[])
         task2 = Thread(target=self.deal_hunter_loop, args=[])
         task1.start()
         task2.start()
 
-        task3 = Thread(target=self.monitoring, args=[])
-        task3.start()
+        # task3 = Thread(target=self.monitoring, args=[])
+        # task3.start()
 
         # task3.start()
 
@@ -253,6 +258,7 @@ class narbitrage_mp(object):
             print("  Start symbol:", self.start_symbol)
             print("  Lot size:", self.lot_size, self.start_symbol)
             print("  Spread:", self.spread * 100, "%")
+            print("  Off symbols:", self.off_symbols)
             # print("Number of pairs:", len(self.selected_pairs))
             print("  Price modifier 1 (orderbook, trade):", self.tick_modifier1, self.trade_tick_modifier1, " tick")
             print("  Price modifier 2 (orderbook, trade):", self.tick_modifier2, self.trade_tick_modifier2, " tick")
@@ -525,16 +531,20 @@ class narbitrage_mp(object):
                     prc2 = 0 if self.price["USDT" + ea] == 1 else 1 / self.price["USDT" + ea]
                     price_usdt = prc1 if ea + "USDT" in self.selected_pairs else prc2
 
-                if ea == 'BTC':
-                    price_btc = 1
+                if "BTC" not in self.off_symbols:
+                    if ea == 'BTC':
+                        price_btc = 1
+                    else:
+                        prc1 = 0 if self.price[ea + "BTC"] == 1 else self.price[ea + "BTC"]
+                        prc2 = 0 if self.price["BTC" + ea] == 1 else 1 / self.price["BTC" + ea]
+                        price_btc = prc1 if ea + "BTC" in self.selected_pairs else prc2
                 else:
-                    prc1 = 0 if self.price[ea + "BTC"] == 1 else self.price[ea + "BTC"]
-                    prc2 = 0 if self.price["BTC" + ea] == 1 else 1 / self.price["BTC" + ea]
-                    price_btc = prc1 if ea + "BTC" in self.selected_pairs else prc2
+                    price_btc = 0
 
                 symbol_value_in_usdt = round(self.wallet[ea] * price_usdt, 3)
-                symbol_value_in_btc = round(self.wallet[ea] * price_btc, 8)
                 total_in_usdt += symbol_value_in_usdt
+
+                symbol_value_in_btc = round(self.wallet[ea] * price_btc, 8)
                 total_in_btc += symbol_value_in_btc
                 eap = ea + "     "
                 amount = '{0:.8f}'.format(self.wallet[ea]) + "                    "
@@ -548,7 +558,11 @@ class narbitrage_mp(object):
 
         print("________________________________________________")
         print("Total:                 ", total_usdtstr[:10], total_btcstr[:10])
-        print("Last total:            ", last_total[:10])
+        print("Last total:            ", str(self.get_status("total1")) + "." + str(self.get_status("total2")))
+        total_in_usdt = round(total_in_usdt, 3)
+        self.set_status("total1", int(str(total_in_usdt).split(".")[0]))
+        self.set_status("total2", int(str(total_in_usdt).split(".")[1]))
+        self.print_deal_counter()
         self.wallet_last_total = total_in_usdt
         print("")
 
@@ -679,15 +693,15 @@ class narbitrage_mp(object):
         # ez sosem fog lefutni mert a szervernek nincs leállítási funkciója csak kilövöm éskész
         await client.close_connection()
 
-    def set_market_data_loop(self):
+    def data_manager_loop(self):
         time.sleep(5)
         # print(self.mpi, "Start data manager.")
         while True:
             self.monitor_data_manager_count += 1
-            self.set_market_data()
+            self.data_manager()
             time.sleep(self.sleep_data_manager)
 
-    def set_market_data(self):
+    def data_manager(self):
         global all_bid_ask_flow
         for sy in all_bid_ask_flow:
             # print(sy)
@@ -723,6 +737,8 @@ class narbitrage_mp(object):
         sy3 = self.triangles[max_row][2].decode('UTF-8')
 
         arb_str = "".join([sy1, " - ", sy2, " - ", sy3])
+
+        self.data_manager()
 
         existing_shm = shared_memory.SharedMemory(name=self.shared_memory_name)
         np_array = np.ndarray((1,), dtype=np.int64, buffer=existing_shm.buf)
@@ -768,13 +784,13 @@ class narbitrage_mp(object):
             t_step_size1 = self.pai[sy1]['stepsize']
             # t_min_qt1 = self.pai[sy1]['minqty']
             t_ticksize1 = self.pai[sy1]['tick_size']
-            t_amount_mod_buy = self.round_with_step_size(
-                self.lot_size / ((saved_orig_price1 - (t_ticksize1 * self.trade_tick_modifier1))),
-                t_step_size1, 1)
-            t_amount1 = t_amount_mod_buy if t_side1 == "BUY" else self.lot_size
+
             t_price1 = saved_orig_price1 + (t_ticksize1 * self.trade_tick_modifier1) \
-                if t_side1 == "BUY" else \
-                saved_orig_price1 - (t_ticksize1 * self.trade_tick_modifier1)
+                if t_side1 == "BUY" else saved_orig_price1 - (t_ticksize1 * self.trade_tick_modifier1)
+            t_amount_mod_buy = self.round_with_step_size(
+                self.lot_size / t_price1, t_step_size1, 1)
+            t_amount1 = t_amount_mod_buy if t_side1 == "BUY" else self.lot_size
+
 
             # trade
             # print(self.wallet)
@@ -824,11 +840,11 @@ class narbitrage_mp(object):
                 # print("wallet", self.wallet[t_quote2], t_quote2)
 
                 # print("Rollback calc")
-                self.set_market_data()
+                self.data_manager()
                 # print(saved_ob_price2, all_bid_ask_flow[sy2])
                 if saved_ob_price1 * all_bid_ask_flow[sy2] * all_bid_ask_flow[sy3] - self.spred_x_3 > 1:
                     mod_price = self.price[sy2]
-                    print('  Price modification:', saved_orig_price2, "->", all_bid_ask_flow[sy2])
+                    print('   Price modification:', saved_orig_price2, "->", mod_price)
                 # else:
                 #     mod_price = saved_orig_price2
 
@@ -855,7 +871,7 @@ class narbitrage_mp(object):
 
                         t_price2 = mod_price + (ticker_steps * t_ticksize2 * trade_try2) \
                             if t_side2 == "BUY" else \
-                            mod_price - (t_ticksize2 * trade_try2)
+                            mod_price - (ticker_steps * t_ticksize2 * trade_try2)
 
                         t_amount_mod2_buy = self.round_with_step_size(
                             self.wallet[t_quote2] / t_price2, t_step_size2, 1)
@@ -1011,6 +1027,8 @@ class narbitrage_mp(object):
 
                 if not self.roll_back:
 
+                    self.set_status("deal")
+
                     real_price_rec1 = real_price1 = self.get_fills_qty(order1)
                     real_price_rec2 = real_price2 = self.get_fills_qty(order2)
                     real_price_rec3 = real_price3 = self.get_fills_qty(order3)
@@ -1058,6 +1076,8 @@ class narbitrage_mp(object):
                 self.print_wallet()
             else:
                 print("   Start order failed.")
+                self.set_status("faile")
+                self.print_deal_counter()
 
 
             existing_shm = shared_memory.SharedMemory(name=self.shared_memory_name)
@@ -1072,22 +1092,27 @@ class narbitrage_mp(object):
             existing_shm.close()
 
     def trade_roll_back(self, sy1, t_symbol1, t_quote1, t_base1, t_side1, t_step_size1, order1):
-        if sy1 == t_symbol1:
-            t_asset_rb = t_quote1
-        else:
-            t_asset_rb = t_base1
+        # if sy1 == t_symbol1:
+        #     t_asset_rb = t_quote1
+        # else:
+        #     t_asset_rb = t_base1
 
-        t_quoteOrderQtyrb = self.wallet[t_asset_rb]
+        # print(sy1, t_symbol1)
+
         inv_side = "SELL" if t_side1 == "BUY" else "BUY"
 
         if inv_side == "BUY":
             quantityrb = None
-            quoteOrderQtyrb = self.wallet[t_asset_rb]
+            quoteOrderQtyrb = self.wallet[t_quote1]
         else:
-            quantityrb = self.round_with_step_size(self.wallet[t_asset_rb], t_step_size1)
+            quantityrb = self.round_with_step_size(self.wallet[t_base1], t_step_size1)
             quoteOrderQtyrb = None
 
         try:
+            # print("symbol:", t_symbol1,
+            #       "Side:", inv_side,
+            #       "quantity:", quantityrb,
+            #       "quoteOrderQty:", quoteOrderQtyrb)
             orderrb = self.bx_client.order_market(symbol=t_symbol1,
                                                   side=inv_side,
                                                   quantity=quantityrb,
@@ -1100,11 +1125,56 @@ class narbitrage_mp(object):
 
         fillsx1 = self.get_fills_qty(order1)
         fillsxrb = self.get_fills_qty(orderrb)
-        print("  Rollback prices:", t_asset_rb,
-              fillsx1,
-              fillsxrb,
-              round((1 - (fillsxrb / fillsx1)) * 100, 8))
+        rb_profit = round((1 - (fillsx1 / fillsxrb)) * 100, 3) if inv_side else round((1 - (fillsxrb / fillsx1)) * 100, 3)
+        print("   Rollback:", t_base1 + t_quote1, t_side1, fillsx1, " -> ", inv_side, fillsxrb, rb_profit, "%")
         self.roll_back = True
+
+        self.set_status("roll")
+
+    def set_status(self, what, value=0):
+        # [deals, roll banck, last total, last total, failed start]
+        deal_counter_existing_shm = shared_memory.SharedMemory(name=self.deal_counter_shared_memory_name)
+        deal_counter_np_array = np.ndarray((5,), dtype=np.int64, buffer=deal_counter_existing_shm.buf)
+        lock.acquire()
+        if what == "deal":
+            deal_counter_np_array[0] += 1
+        elif what == "roll":
+            deal_counter_np_array[1] += 1
+        elif what == "total1":
+            deal_counter_np_array[2] = value
+        elif what == "total2":
+            deal_counter_np_array[3] = value
+        elif what == "faile":
+            deal_counter_np_array[4] += 1
+        lock.release()
+        deal_counter_existing_shm.close()
+
+    def get_status(self, what):
+        # [deals, roll banck, last total, last total, failed start]
+        deal_counter_existing_shm = shared_memory.SharedMemory(name=self.deal_counter_shared_memory_name)
+        deal_counter_np_array = np.ndarray((5,), dtype=np.int64, buffer=deal_counter_existing_shm.buf)
+        lock.acquire()
+        if what == "deal":
+            i_return = deal_counter_np_array[0]
+        elif what == "roll":
+            i_return = deal_counter_np_array[1]
+        elif what == "total1":
+            i_return = deal_counter_np_array[2]
+        elif what == "total2":
+            i_return = deal_counter_np_array[3]
+        elif what == "faile":
+            i_return = deal_counter_np_array[4]
+        else:
+            i_return = 0
+        lock.release()
+        deal_counter_existing_shm.close()
+        return i_return
+
+    def print_deal_counter(self):
+        # [deals, roll banck, last total, last total, failed start]
+        print("Closed trades:", self.get_status("deal"),
+              "   Roll backs:", self.get_status("roll"),
+              "   Failed:", self.get_status("faile"))
 
     def get_fills_qty(self, order_result):
         # print(order_result)
@@ -1121,16 +1191,21 @@ if __name__ == '__main__':
     
     a = np.array([1], dtype=np.int64)
     shm = shared_memory.SharedMemory(create=True, size=a.nbytes)
-    # # Now create a NumPy array backed by shared memory
     np_array = np.ndarray(a.shape, dtype=np.int64, buffer=shm.buf)
     np_array[:] = a[:]  # Copy the original data into shared memory
-    
+
+    deal_counter = np.array([0, 0, 0, 0, 0], dtype=np.int64)
+    # [deals, roll banck, last total, last total, failed start]
+    deal_counter_shm = shared_memory.SharedMemory(create=True, size=deal_counter.nbytes)
+    deal_counter_np_array = np.ndarray(deal_counter.shape, dtype=np.int64, buffer=deal_counter_shm.buf)
+    deal_counter_np_array[:] = deal_counter[:]  # Copy the original data into shared memory
+
     used_cores = cpu_count()
     # used_cores = 1
     
     params = []
     for x in range(used_cores):
-        params.append([used_cores, x + 1, shm.name])
+        params.append([used_cores, x + 1, shm.name, deal_counter_shm.name])
     n_arb = narbitrage_mp
     xpool = Pool(used_cores)
     res = xpool.map(n_arb, params)
