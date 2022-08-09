@@ -23,11 +23,12 @@ import requests
 from threading import Thread
 import pickle
 # Global variables for multi commication
-all_bid_ask_flow = {}
+bid_ask_flow = {}
+order_qty = {}
 
 class narbitrage_mp(object):
     def __init__(self, prc_inf):
-        global all_bid_ask_flow
+        global bid_ask_flow, order_qty
         self.cores = prc_inf[0]  # összesen hány process van
         self.process = prc_inf[1]  # én hanyadik process vagyok
         self.shared_memory_name = prc_inf[2]  # megosztott memória trade lockhoz
@@ -36,8 +37,8 @@ class narbitrage_mp(object):
         self.mpi = str(self.process) + "/" + str(self.cores) + " core ->"
         print(self.mpi, "starts.")
 
-        # self.load_triangles = "triangles_all.npy"  # ha üres akkor nem tölti be hanem megcsinálja
-        self.load_triangles = "triangles_top250.npy"  # ha üres akkor nem tölti be hanem megcsinálja
+        self.load_triangles = "triangles_all.npy"  # ha üres akkor nem tölti be hanem megcsinálja
+        # self.load_triangles = "triangles_top250.npy"  # ha üres akkor nem tölti be hanem megcsinálja
         # self.load_triangles = ""
         # self.save_triangles = "triangles_all.npy"  # ha üres akkor nem tölti be hanem megcsinálja
         self.save_triangles = ""
@@ -45,7 +46,7 @@ class narbitrage_mp(object):
         self.start_symbol = 'USDT'
         self.symbols_no = 1000  # over 1000 it is max
         self.lot_size = 25  # USDor start symbol
-        self.spread = 0.075 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
+        self.spread = 0.065 / 100  # % ezzel kalkulálom a profitot. minimum 3 * ennyinek kell lenni
         self.spred_x_3 = self.spread * 3
         self.tick_modifier1 = 0
         self.tick_modifier2 = 0
@@ -58,6 +59,9 @@ class narbitrage_mp(object):
         self.ab1 = np.array([])
         self.ab2 = np.array([])
         self.ab3 = np.array([])
+        self.ab1_qty = np.array([])
+        self.ab2_qty = np.array([])
+        self.ab3_qty = np.array([])
         self.calculate_count = 1
         
         self.api_key = "DAqss9T987L0ruIbVEW9rBEFDD2sKxEKBvpvDVUJfdjijzqPqBgD8semkNF2I5Ul"
@@ -66,6 +70,7 @@ class narbitrage_mp(object):
         self.account = self.get_account()
         self.exchange_info = self.get_exchange_info()
         self.save_btcusdt = 0
+        self.c = {"qty_ready": 0}
 
         # self.symbols = ['USDT', 'BTC', 'ETH', '1INCH', 'AAVE', 'ACH', 'ADA', 'AKRO', 'ALGO', 'ALICE', 'ALPHA', 'ANC',
         #                 'ANKR', 'ANT', 'APE', 'AR', 'ASTR', 'ATA', 'ATOM', 'AUD', 'AUDIO', 'AVA',
@@ -134,7 +139,7 @@ class narbitrage_mp(object):
 
 
         ## off symbols
-        self.off_symbols = ['BIDR', 'BUSD', 'BNB', 'USDC', 'TUSD', 'TRY']
+        self.off_symbols = ['BNB', 'USDC', 'TUSD', 'TRY']
         for osy in self.off_symbols:
             self.symbols.remove(osy)
 
@@ -151,6 +156,11 @@ class narbitrage_mp(object):
         self.sleep_data_manager = 0.005
         self.sleep_deal_hunter = 0.01
         self.deal_count = 0
+        self.run_id = self.get_run_id()
+        # self.save_deal_data("symbol1", "side1", 1234567.12345678,
+        #                        "symbol2", "side2", 1234567.12345678,
+        #                        "symbol3", "side3", 1234567.12345678,
+        #                        1.1234567, 0.0095)
 
         self.wallet = {}
         self.roll_back = False
@@ -168,6 +178,13 @@ class narbitrage_mp(object):
                 sys.exit()
         self.strat_threads()
         self.start_asyc_websocket()
+
+    def get_run_id(self):
+        inow = datetime.now()
+        istr = str(inow.day) + "_" +\
+               str(inow.hour) + "_" + \
+               str(inow.minute)
+        return "nDot_" + istr
 
     def monitoring(self):
         while True:
@@ -190,9 +207,11 @@ class narbitrage_mp(object):
 
     def strat_threads(self):
         task1 = Thread(target=self.data_manager_loop, args=[])
-        task2 = Thread(target=self.deal_hunter_loop, args=[])
+        task2 = Thread(target=self.data_manager_loop2, args=[])
+        task3 = Thread(target=self.deal_hunter_loop, args=[])
         task1.start()
         task2.start()
+        task3.start()
 
         # task3 = Thread(target=self.monitoring, args=[])
         # task3.start()
@@ -367,6 +386,10 @@ class narbitrage_mp(object):
         self.ab1 = np.full(self.triangles.shape[0], 0.00000000, dtype=float)
         self.ab2 = np.full(self.triangles.shape[0], 0.00000000, dtype=float)
         self.ab3 = np.full(self.triangles.shape[0], 0.00000000, dtype=float)
+
+        self.ab1_qty = np.full(self.triangles.shape[0], 0.00000000, dtype=float)
+        self.ab2_qty = np.full(self.triangles.shape[0], 0.00000000, dtype=float)
+        self.ab3_qty = np.full(self.triangles.shape[0], 0.00000000, dtype=float)
 
     def get_account(self):
         return self.bx_client.get_account()
@@ -581,8 +604,9 @@ class narbitrage_mp(object):
         loop.run_until_complete(self.asyc_websocket())
         loop.close()
 
+
     async def asyc_websocket(self):
-        global all_bid_ask_flow
+        global bid_ask_flow, order_qty
         max_sockets = 1500
 
         i_socket_list = []
@@ -597,8 +621,10 @@ class narbitrage_mp(object):
                     i_socket_list.append(sp.lower() + '@bookTicker')
                     s_symbol = base_asset + quote_asset
                     i_symbol = quote_asset + base_asset
-                    all_bid_ask_flow[s_symbol.upper()] = 0
-                    all_bid_ask_flow[i_symbol.upper()] = 0
+                    bid_ask_flow[s_symbol.upper()] = 0
+                    bid_ask_flow[i_symbol.upper()] = 0
+                    order_qty[s_symbol.upper()] = 0
+                    order_qty[i_symbol.upper()] = 0
 
 
         # max_sockets = 150
@@ -652,10 +678,17 @@ class narbitrage_mp(object):
                 s2s1 = "".join([s2, s1])
 
                 bid = round(float(res['data']['b']), 8)
+                bid_qty = round(float(res['data']['B']), 8)
                 ask = round(float(res['data']['a']), 8)
+                ask_qty = round(float(res['data']['A']), 8)
 
-                all_bid_ask_flow[s1s2] = bid
-                all_bid_ask_flow[s2s1] = 1 / ask
+                bid_ask_flow[s1s2] = bid
+                bid_ask_flow[s2s1] = 1 / ask
+
+                order_qty[s1s2] = bid_qty
+                order_qty[s2s1] = ask_qty
+
+
 
                 self.price[s1s2] = bid
                 self.price[s2s1] = ask
@@ -695,23 +728,39 @@ class narbitrage_mp(object):
 
     def data_manager_loop(self):
         time.sleep(5)
+        ilen = int(len(list(bid_ask_flow)) / 2)
+        ilist = list(bid_ask_flow.keys())[0:ilen]
         # print(self.mpi, "Start data manager.")
         while True:
             self.monitor_data_manager_count += 1
-            self.data_manager()
+            self.data_manager(ilist)
             time.sleep(self.sleep_data_manager)
 
-    def data_manager(self):
-        global all_bid_ask_flow
-        for sy in all_bid_ask_flow:
+    def data_manager_loop2(self):
+        time.sleep(5)
+        ilen = int(len(list(bid_ask_flow)) / 2)
+        ilist = list(bid_ask_flow.keys())[ilen:1500]
+        # print(self.mpi, "Start data manager.")
+        while True:
+            self.monitor_data_manager_count += 1
+            self.data_manager(ilist)
+            time.sleep(self.sleep_data_manager)
+
+    def data_manager(self, ilist):
+        global bid_ask_flow, order_qty
+        for sy in ilist:
             # print(sy)
             # time.sleep(1)
             # tick_size = self.pai[sy]['tick_size']
             # self.price_flow[sy] = all_bid_ask_flow[sy]
 
-            np.put(self.ab1, self.refresh_map[sy][0], all_bid_ask_flow[sy])
-            np.put(self.ab2, self.refresh_map[sy][1], all_bid_ask_flow[sy])
-            np.put(self.ab3, self.refresh_map[sy][2], all_bid_ask_flow[sy])
+            np.put(self.ab1, self.refresh_map[sy][0], bid_ask_flow[sy])
+            np.put(self.ab2, self.refresh_map[sy][1], bid_ask_flow[sy])
+            np.put(self.ab3, self.refresh_map[sy][2], bid_ask_flow[sy])
+
+            np.put(self.ab1_qty, self.refresh_map[sy][0], order_qty[sy])
+            np.put(self.ab2_qty, self.refresh_map[sy][1], order_qty[sy])
+            np.put(self.ab3_qty, self.refresh_map[sy][2], order_qty[sy])
 
             # np.put(self.ab1, self.refresh_map[s2s1][0], 1 / (ask + (self.tick_modifier1 * tick_size)))
             # np.put(self.ab2, self.refresh_map[s2s1][1], 1 / (ask + (self.tick_modifier2 * tick_size)))
@@ -727,7 +776,7 @@ class narbitrage_mp(object):
             time.sleep(self.sleep_deal_hunter)
 
     def deal_hunter(self):
-        global all_bid_ask_flow
+        global bid_ask_flow
         # print(self.mpi, "Trade *********************************************************************")
         profit_array = np.multiply(np.multiply(self.ab1, self.ab2), self.ab3)
         max_row = np.argmax(profit_array)
@@ -738,16 +787,26 @@ class narbitrage_mp(object):
 
         arb_str = "".join([sy1, " - ", sy2, " - ", sy3])
 
-        self.data_manager()
+        self.data_manager([sy1, sy2, sy3])
 
         existing_shm = shared_memory.SharedMemory(name=self.shared_memory_name)
         np_array = np.ndarray((1,), dtype=np.int64, buffer=existing_shm.buf)
+
+        amount0 = self.lot_size
+        amount1 = amount0 * self.ab1[max_row]
+        amount2 = amount1 * self.ab2[max_row]
+        amount3 = amount2 * self.ab2[max_row]
+
+        qty_ready = min(self.ab1_qty[max_row] - (amount1 * 1.2),
+                        self.ab2_qty[max_row] - (amount2 * 1.2),
+                        self.ab3_qty[max_row] - (amount3 * 1.2))
 
         # ezt azért csinálom így hogy a profit számolás csak akkor fusson ha kell
         # ha profit előtte lenne mindíg kellene számolni
         if self.last_arb != arb_str \
                 and np_array[0] == 1 \
-                and 1 < self.ab1[max_row] * self.ab2[max_row] * self.ab3[max_row] - self.spred_x_3:
+                and 1 < self.ab1[max_row] * self.ab2[max_row] * self.ab3[max_row] - self.spred_x_3\
+                and qty_ready > 0:
 
             lock.acquire()
             np_array[0] = 0
@@ -764,6 +823,34 @@ class narbitrage_mp(object):
             saved_orig_price2 = self.price[sy2]
             saved_orig_price3 = self.price[sy3]
 
+            # t_side1 = self.pai[sy1]['side']
+            # t_side2 = self.pai[sy2]['side']
+            # t_side3 = self.pai[sy3]['side']
+            #
+            # t_symbol1 = self.pai[sy1]['orig_symbol']
+            # t_symbol2 = self.pai[sy2]['orig_symbol']
+            # t_symbol3 = self.pai[sy3]['orig_symbol']
+
+            # amount0 = self.lot_size
+            # amount1 = amount0 * saved_ob_price1
+            # amount2 = amount1 * saved_ob_price2
+            # amount3 = amount2 * saved_ob_price3
+            #
+            # qty_ready = min(self.ab1_qty[max_row] - amount1,
+            #                 self.ab2_qty[max_row] - amount2,
+            #                 self.ab3_qty[max_row] - amount3)
+            #
+            # if qty_ready > 0:
+            #     self.c["qty_ready"] += 1
+            #
+            # print(self.c["qty_ready"], "min qty", qty_ready)
+            # print("side", t_side1, t_side2, t_side3)
+            # print("symbol", t_symbol1, t_symbol2, t_symbol3)
+            # print("calculated qty:", amount0, amount1, amount2, amount3)
+            # print("orderbook qty: ", amount0, self.ab1_qty[max_row], self.ab2_qty[max_row], self.ab3_qty[max_row])
+            # print("flow price: ", amount0, self.ab1[max_row], self.ab2[max_row], self.ab3[max_row])
+            # print("orig price: ", amount0, self.price[sy1], self.price[sy2], self.price[sy3])
+
             print("")
             print(self.mpi, "Trade:")
 
@@ -771,11 +858,23 @@ class narbitrage_mp(object):
                   sy2, '    ',
                   sy3, profit)
 
+
             self.roll_back = False
             t_side1 = self.pai[sy1]['side']
             t_side2 = self.pai[sy2]['side']
             t_side3 = self.pai[sy3]['side']
 
+            # data collector --------------------------------
+            # t_symbol1 = self.pai[sy1]['orig_symbol']
+            # t_symbol2 = self.pai[sy2]['orig_symbol']
+            # t_symbol3 = self.pai[sy3]['orig_symbol']
+            #
+            # self.save_deal_data(t_symbol1, t_side1, saved_ob_price1,
+            #                     t_symbol2, t_side2, saved_ob_price2,
+            #                     t_symbol3, t_side3, saved_ob_price3,
+            #                     profit, self.spread)
+            # time.sleep(3)
+            # data collector --------------------------------
             # Order1 ------------------------------------------------------------
             # print(self.mpi, "Trade", arb_str)
             t_symbol1 = self.pai[sy1]['orig_symbol']
@@ -840,9 +939,13 @@ class narbitrage_mp(object):
                 # print("wallet", self.wallet[t_quote2], t_quote2)
 
                 # print("Rollback calc")
-                self.data_manager()
-                # print(saved_ob_price2, all_bid_ask_flow[sy2])
-                if saved_ob_price1 * all_bid_ask_flow[sy2] * all_bid_ask_flow[sy3] - self.spred_x_3 > 1:
+                self.data_manager([sy1, sy2, sy3])
+                print("  new", saved_ob_price1, bid_ask_flow[sy2], bid_ask_flow[sy3],
+                      saved_ob_price1 * bid_ask_flow[sy2] * bid_ask_flow[sy3] - self.spred_x_3)
+                print("  orig", saved_ob_price1, saved_ob_price2, saved_ob_price3, profit)
+                # if saved_ob_price1 * bid_ask_flow[sy2] * bid_ask_flow[sy3] - self.spred_x_3 > 1:
+                if saved_ob_price1 * saved_ob_price2 * saved_ob_price3 - self.spred_x_3 > 1:
+                    print("  go 2")
                     mod_price = self.price[sy2]
                     print('   Price modification:', saved_orig_price2, "->", mod_price)
                 # else:
@@ -866,8 +969,8 @@ class narbitrage_mp(object):
                     # t_amount2 = self.wallet[t_base2] if t_side2 == "SELL" else self.wallet[t_quote2]
                     # t_amount2 = self.round_qty_with_step_size(t_amount2,
                     #                                           t_step_size2) if t_side2 == "SELL" else t_amount2
-                    ticker_steps = 0
-                    for trade_try2 in range(2):
+                    ticker_steps = 1
+                    for trade_try2 in range(0, 3):
 
                         t_price2 = mod_price + (ticker_steps * t_ticksize2 * trade_try2) \
                             if t_side2 == "BUY" else \
@@ -904,7 +1007,7 @@ class narbitrage_mp(object):
                                                                 side=t_side2,
                                                                 quantity=t_amount2,
                                                                 timeInForce=TIME_IN_FORCE_FOK)
-                            # print(order2)
+                            print(order2)
                             # print(saved_ob_price1, self.price_flow[sy2], self.price_flow[sy3])
                             # print(saved_ob_price1, 1 / self.price_flow[sy2], self.price_flow[sy3])
 
@@ -1001,6 +1104,10 @@ class narbitrage_mp(object):
                         # self.roll_back = True
                 else:
                     self.trade_roll_back(sy1, t_symbol1, t_quote1, t_base1, t_side1, t_step_size1, order1)
+                    self.save_deal_data("/".join([self.pai[sy1]["base"], self.pai[sy1]["base"]]), t_side1, saved_ob_price1,
+                                        "/".join([self.pai[sy2]["base"], self.pai[sy2]["base"]]), t_side2, saved_ob_price2,
+                                        "/".join([self.pai[sy3]["base"], self.pai[sy3]["base"]]), t_side3, saved_ob_price3,
+                                        profit, self.spread)
 
     ## END PRINT ----------------------------------------------------
 
@@ -1072,6 +1179,14 @@ class narbitrage_mp(object):
                           "              " + t_side2,
                           "              " + t_side3)
 
+                    self.save_deal_data("/".join([self.pai[sy1]["base"], self.pai[sy1]["base"]]), t_side1,
+                                        saved_ob_price1,
+                                        "/".join([self.pai[sy2]["base"], self.pai[sy2]["base"]]), t_side2,
+                                        saved_ob_price2,
+                                        "/".join([self.pai[sy3]["base"], self.pai[sy3]["base"]]), t_side3,
+                                        saved_ob_price3,
+                                        profit, self.spread)
+
                 self.refresh_wallet()
                 self.print_wallet()
             else:
@@ -1090,6 +1205,21 @@ class narbitrage_mp(object):
             print("")
         else:
             existing_shm.close()
+
+    def save_deal_data(self,
+                       sy1,side1,price1,
+                       sy2,side2,price2,
+                       sy3,side3,price3,
+                       profit, spread):
+
+        ideals = [sy1, side1, '{0:.8f}'.format(price1),
+             sy2, side2, '{0:.8f}'.format(price2),
+             sy3, side3, '{0:.8f}'.format(price3),
+             '{0:.8f}'.format(profit), '{0:.8f}'.format(spread)]
+
+        with open("deals_" + self.run_id+'.txt', 'a') as f:
+            f.write(",".join(ideals)+"\n")
+
 
     def trade_roll_back(self, sy1, t_symbol1, t_quote1, t_base1, t_side1, t_step_size1, order1):
         # if sy1 == t_symbol1:
